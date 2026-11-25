@@ -72,7 +72,6 @@ export default function GlobalCommandPalette({ open, onOpenChange }) {
     { id: "mod_estoque", title: "Estoque de Bobinas & Chapas", category: "Navegação / Estoque", icon: BookmarkPlus, path: "/corte-dobra/bobinas", roles: ["super_admin", "admin", "encarregado", "vendedor"], appKey: "app_consulta_estoque" },
     { id: "mod_vendas", title: "Painel de Vendas / Vendedor", category: "Navegação / Módulos", icon: BarChart3, path: "/vendedor-dashboard", roles: ["super_admin", "admin", "vendedor"], appKey: "app_painel_vendedor" },
     { id: "mod_usuarios", title: "Gestão de Usuários & Permissões", category: "Administração", icon: Users, path: "/usuarios", roles: ["super_admin", "admin"], appKey: "app_gestao_usuarios" },
-    { id: "mod_admin", title: "Painel Administrativo", category: "Administração", icon: ShieldAlert, path: "/painel-admin", roles: ["super_admin", "admin"], appKey: "app_control_tower" },
   ];
 
   // Busca Reativa no Base44 ao digitar (debounced)

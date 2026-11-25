@@ -41,7 +41,6 @@ const Desbobinador = lazy(() => import('@/pages/maquinas/Desbobinador'));
 const Cumeeira = lazy(() => import('@/pages/maquinas/Cumeeira'));
 const Colagem = lazy(() => import('@/pages/maquinas/Colagem'));
 const DashboardProducao = lazy(() => import('@/pages/DashboardProducao'));
-const DashboardEstoque = lazy(() => import('@/pages/DashboardEstoque'));
 const DashboardTP40 = lazy(() => import('@/pages/maquinas/DashboardTP40'));
 const DashboardTP25 = lazy(() => import('@/pages/maquinas/DashboardTP25'));
 const DashboardOndulada = lazy(() => import('@/pages/maquinas/DashboardOndulada'));
@@ -55,15 +54,12 @@ const DashboardPerformance = lazy(() => import('@/pages/DashboardPerformance'));
 const Cola = lazy(() => import('@/pages/Cola'));
 const VendedorEstoque = lazy(() => import('@/pages/VendedorEstoque'));
 const VendedorDashboard = lazy(() => import('@/pages/VendedorDashboard'));
-const PainelAdministrativo = lazy(() => import('@/pages/PainelAdministrativo'));
-const PerformanceOperadores = lazy(() => import('@/pages/PerformanceOperadores'));
 const SeletorSetor = lazy(() => import('@/pages/SeletorSetor'));
 const ProducaoCD = lazy(() => import('@/pages/corte-dobra/Producao'));
 const BobinasCD = lazy(() => import('@/pages/corte-dobra/Bobinas'));
 const Chaparia = lazy(() => import('@/pages/corte-dobra/Chaparia'));
 const EPI = lazy(() => import('@/pages/corte-dobra/EPI'));
 const DesenvolvimentoCD = lazy(() => import('@/pages/corte-dobra/Desenvolvimento'));
-const AuditoriaPage = lazy(() => import('@/pages/AuditoriaPage'));
 const TimelineCarregamentoPage = lazy(() => import('@/pages/TimelineCarregamentoPage'));
 const CatalogoCD = lazy(() => import('@/pages/corte-dobra/Catalogo'));
 const CentralPopsPage = lazy(() => import('@/pages/CentralPopsPage'));
@@ -86,8 +82,6 @@ const LogisticaStandalone = lazy(() => import('@/pages/Logistica'));
 const CentralAlertas = lazy(() => import('@/pages/corte-dobra/CentralAlertas'));
 const CentralPCP = lazy(() => import('@/pages/CentralPCP'));
 const CalendarioLogisticaPage = lazy(() => import('@/pages/CalendarioLogisticaPage'));
-const DashboardExecutivo = lazy(() => import('@/pages/DashboardExecutivo'));
-const RelatoriosGerenciais = lazy(() => import('@/pages/RelatoriosGerenciais'));
 const DashboardExpedicao = lazy(() => import('@/pages/expedicao/Dashboard'));
 const RecebimentoExpedicao = lazy(() => import('@/pages/expedicao/Recebimento'));
 const EstoqueExpedicao = lazy(() => import('@/pages/expedicao/Estoque'));
@@ -165,16 +159,10 @@ const AuthenticatedApp = () => {
         <Route path="/cola" element={<Cola />} />
         <Route path="/mapa-barracao" element={<Navigate to="/producao" replace />} />
         <Route path="/dashboard-telhas" element={<DashboardTelhas />} />
-        <Route path="/estoque-dashboard" element={<DashboardEstoque setorInicial="telhas" backUrl="/producao" backLabel="Voltar para Telhas" />} />
-        <Route path="/telhas/estoque-dashboard" element={<DashboardEstoque setorInicial="telhas" backUrl="/producao" backLabel="Voltar para Telhas" />} />
-        <Route path="/performance-operadores" element={<PerformanceOperadores />} />
         <Route path="/telhas/logistica" element={<Logistica mode="montagem" defaultTab="telhas" />} />
       </Route>
-      <Route path="/ranking-operadores" element={<PerformanceOperadores />} />
-      <Route path="/painel-estoque" element={<DashboardEstoque setorInicial="todos" backUrl="/setor" backLabel="Voltar ao Início" />} />
       <Route path="/vendedor" element={<VendedorEstoque />} />
       <Route path="/vendedor-dashboard" element={<VendedorDashboard />} />
-      <Route path="/painel-admin" element={<PainelAdministrativo />} />
       <Route path="/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/admin/usuarios" element={<GerenciarUsuarios />} />
       <Route path="/corte-dobra/usuarios" element={<GerenciarUsuarios />} />
@@ -184,16 +172,11 @@ const AuthenticatedApp = () => {
       <Route path="/setor" element={<SeletorSetor />} />
       <Route path="/bobina-qr/:id" element={<BobinaQR />} />
       <Route path="/calendario-entregas" element={<CalendarioLogisticaPage />} />
-      <Route path="/dashboard-executivo" element={<DashboardExecutivo />} />
-      <Route path="/relatorios" element={<RelatoriosGerenciais />} />
-      <Route path="/auditoria" element={<AuditoriaPage />} />
       <Route path="/timeline-carregamento" element={<TimelineCarregamentoPage />} />
       <Route element={<AppLayoutCD />}>
         <Route path="/corte-dobra" element={<DashboardCorteDobraCompleto />} />
         <Route path="/corte-dobra/producao" element={<ProducaoCD />} />
         <Route path="/corte-dobra/bobinas" element={<BobinasCD />} />
-        <Route path="/corte-dobra/estoque-dashboard" element={<DashboardEstoque setorInicial="corte_dobra" backUrl="/corte-dobra/producao" backLabel="Voltar para Corte e Dobra" />} />
-        <Route path="/corte-dobra/performance-operadores" element={<PerformanceOperadores />} />
         <Route path="/corte-dobra/chaparia" element={<Chaparia />} />
         <Route path="/corte-dobra/epi" element={<EPI />} />
         <Route path="/corte-dobra/alertas" element={<CentralAlertas />} />

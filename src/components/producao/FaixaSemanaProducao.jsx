@@ -74,18 +74,6 @@ export default function FaixaSemanaProducao({
             <Calendar className="w-3 h-3" />
             Hoje
           </Button>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="gap-1 text-xs font-semibold h-7 text-teal-600 dark:text-teal-400 border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/40"
-            title="Estoque por Espessura"
-          >
-            <Link to="/estoque-dashboard">
-              <Layers className="w-3 h-3 text-teal-500" />
-              <span className="hidden sm:inline">Espessuras</span>
-            </Link>
-          </Button>
         </div>
       </div>
 

@@ -765,22 +765,6 @@ export default function ProducaoAdmin() {
         <div className="w-px bg-border mx-1 self-stretch" />
 
         <Link
-          to="/performance-operadores"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-amber-600 dark:text-amber-400 hover:bg-card hover:text-amber-500 hover:shadow font-semibold"
-        >
-          <Trophy className="w-4 h-4 text-amber-500" />
-          Ranking Equipe
-        </Link>
-
-        <Link
-          to="/estoque-dashboard"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-teal-600 dark:text-teal-400 hover:bg-card hover:text-teal-500 hover:shadow font-semibold"
-        >
-          <Layers className="w-4 h-4 text-teal-500" />
-          Estoque por Espessura
-        </Link>
-
-        <Link
           to="/dashboard-performance"
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-card hover:text-foreground hover:shadow"
         >

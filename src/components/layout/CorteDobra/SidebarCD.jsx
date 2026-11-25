@@ -15,7 +15,6 @@ const NAV = [
   { path: "/corte-dobra", label: "Dashboard", icon: LayoutDashboard },
   { path: "/corte-dobra/desenvolvimento", label: "Desenvolvimento", icon: Calculator },
   { path: "/corte-dobra/producao", label: "Produção Geral", icon: Factory },
-  { path: "/corte-dobra/estoque-dashboard", label: "Estoque por Espessura", icon: Layers },
   { path: "/corte-dobra/calculos", label: "Cálculos", icon: FlaskConical },
   { path: "/corte-dobra/bobinas", label: "Bobinas", icon: Circle },
   { path: "/corte-dobra/chaparia", label: "Chaparia", icon: Layers },

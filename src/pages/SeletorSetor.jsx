@@ -8,24 +8,14 @@ import {
   BarChart3, 
   Factory, 
   Scissors, 
-  LayoutDashboard, 
-  Settings, 
-  ShieldAlert, 
   Users, 
   GripVertical,
   Search,
-  Clock,
   PackageCheck,
   Inbox,
   Sun,
   Moon,
-  Layers,
-  Trophy,
-  Building2,
   Calendar,
-  FileText,
-  Camera,
-  ShieldCheck,
   Download,
   Smartphone,
   GitBranch
@@ -39,6 +29,17 @@ import ComoInstalarModal from "@/components/pwa/ComoInstalarModal";
 import { cn } from "@/lib/utils";
 
 const ALL_MODULES = [
+  {
+    key: "app_central_pcp",
+    title: "Central PCP",
+    description: "Aba Mãe · Fila FIFO de pedidos Odoo e distribuição",
+    icon: <Inbox className="w-6 h-6 sm:w-7 sm:h-7 text-orange-400" />,
+    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
+    borderColor: "border-slate-700/50 hover:border-orange-500/50",
+    iconBg: "bg-orange-500/10 shadow-orange-900/20",
+    type: "route",
+    routeTarget: "/pcp"
+  },
   {
     key: "app_fabrica_telhas",
     title: "Barracão Telhas",
@@ -73,17 +74,6 @@ const ALL_MODULES = [
     setorTarget: "expedicao"
   },
   {
-    key: "app_hora_extra",
-    title: "Hora Extra",
-    description: "Registro, ponto e gestão de horas extras de expedição",
-    icon: <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-amber-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-amber-500/50",
-    iconBg: "bg-amber-500/10 shadow-amber-900/20",
-    type: "link",
-    href: "https://hora-extra.base44.app"
-  },
-  {
     key: "app_logistica",
     title: "Logística",
     description: "Expedição, cargas, romaneios e frota",
@@ -93,17 +83,6 @@ const ALL_MODULES = [
     iconBg: "bg-emerald-500/10 shadow-emerald-900/20",
     type: "route",
     routeTarget: "/logistica"
-  },
-  {
-    key: "app_central_pcp",
-    title: "Central PCP",
-    description: "Aba Mãe · Fila FIFO de pedidos Odoo e distribuição",
-    icon: <Inbox className="w-6 h-6 sm:w-7 sm:h-7 text-orange-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-orange-500/50",
-    iconBg: "bg-orange-500/10 shadow-orange-900/20",
-    type: "route",
-    routeTarget: "/pcp"
   },
   {
     key: "app_consulta_estoque",
@@ -117,61 +96,6 @@ const ALL_MODULES = [
     routeTarget: "/vendedor"
   },
   {
-    key: "app_estoque_espessura",
-    title: "Estoque por Espessura",
-    description: "Saldo por espessura, níveis mínimos e alertas compras",
-    icon: <Layers className="w-6 h-6 sm:w-7 sm:h-7 text-teal-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-teal-500/50",
-    iconBg: "bg-teal-500/10 shadow-teal-900/20",
-    type: "route",
-    routeTarget: "/painel-estoque"
-  },
-  {
-    key: "app_performance_operadores",
-    title: "Performance Operadores",
-    description: "Ranking, produtividade, pódio e metas da equipe",
-    icon: <Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-yellow-500/50",
-    iconBg: "bg-yellow-500/10 shadow-yellow-900/20",
-    type: "route",
-    routeTarget: "/ranking-operadores"
-  },
-  {
-    key: "app_dashboard_executivo",
-    title: "Dashboard Executivo",
-    description: "Consolidação ao vivo das 4 filiais (Visão CEO)",
-    icon: <Building2 className="w-6 h-6 sm:w-7 sm:h-7 text-teal-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-teal-500/50",
-    iconBg: "bg-teal-500/10 shadow-teal-900/20",
-    type: "route",
-    routeTarget: "/dashboard-executivo"
-  },
-  {
-    key: "app_calendario_entregas",
-    title: "Calendário Entregas",
-    description: "Visão mensal/semanal de rotas, frota e conflitos",
-    icon: <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-emerald-500/50",
-    iconBg: "bg-emerald-500/10 shadow-emerald-900/20",
-    type: "route",
-    routeTarget: "/calendario-entregas"
-  },
-  {
-    key: "app_relatorios_gerenciais",
-    title: "Relatórios em PDF",
-    description: "Emissão oficial de produção, estoque e expedição",
-    icon: <FileText className="w-6 h-6 sm:w-7 sm:h-7 text-blue-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-blue-500/50",
-    iconBg: "bg-blue-500/10 shadow-blue-900/20",
-    type: "route",
-    routeTarget: "/relatorios"
-  },
-  {
     key: "app_painel_vendedor",
     title: "Painel de Vendas",
     description: "Visão geral, metas, comissões e histórico",
@@ -181,39 +105,6 @@ const ALL_MODULES = [
     iconBg: "bg-indigo-500/10 shadow-indigo-900/20",
     type: "route",
     routeTarget: "/vendedor-dashboard"
-  },
-  {
-    key: "app_dashboard_ajl",
-    title: "Dashboard AJL",
-    description: "Painel principal de indicadores e metas",
-    icon: <LayoutDashboard className="w-6 h-6 sm:w-7 sm:h-7 text-orange-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-orange-500/50",
-    iconBg: "bg-orange-500/10 shadow-orange-900/20",
-    type: "link",
-    href: "https://dashboard-ajl.base44.app"
-  },
-  {
-    key: "app_gerencia_fabricas",
-    title: "Gerencial",
-    description: "Controle avançado, OEE e eficiência",
-    icon: <Settings className="w-6 h-6 sm:w-7 sm:h-7 text-amber-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-amber-500/50",
-    iconBg: "bg-amber-500/10 shadow-amber-900/20",
-    type: "link",
-    href: "https://gerencial-fabricas.base44.app"
-  },
-  {
-    key: "app_control_tower",
-    title: "Painel Administrativo",
-    description: "Acesso irrestrito às configurações do ERP",
-    icon: <ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7 text-rose-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-rose-500/50",
-    iconBg: "bg-rose-500/10 shadow-rose-900/20",
-    type: "route",
-    routeTarget: "/painel-admin"
   },
   {
     key: "app_gestao_usuarios",
@@ -227,26 +118,15 @@ const ALL_MODULES = [
     routeTarget: "/usuarios"
   },
   {
-    key: "app_timeline_carregamento",
-    title: "Timeline Carregamento",
-    description: "Auditoria 5 etapas com fotos e amarração de carga",
-    icon: <Camera className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400" />,
+    key: "app_calendario_entregas",
+    title: "Calendário Entregas",
+    description: "Visão mensal/semanal de rotas, frota e conflitos",
+    icon: <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-400" />,
     gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
     borderColor: "border-slate-700/50 hover:border-emerald-500/50",
     iconBg: "bg-emerald-500/10 shadow-emerald-900/20",
     type: "route",
-    routeTarget: "/timeline-carregamento"
-  },
-  {
-    key: "app_auditoria",
-    title: "Auditoria Central",
-    description: "Trilha de auditoria global e rastreabilidade de ações",
-    icon: <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-cyan-400" />,
-    gradient: "from-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950",
-    borderColor: "border-slate-700/50 hover:border-cyan-500/50",
-    iconBg: "bg-cyan-500/10 shadow-cyan-900/20",
-    type: "route",
-    routeTarget: "/auditoria"
+    routeTarget: "/calendario-entregas"
   },
   {
     key: "app_pops_fluxogramas",

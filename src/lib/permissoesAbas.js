@@ -11,7 +11,6 @@ export const ESTRUTURA_ABAS_APLICATIVOS = [
     abas: [
       { id: "telhas_dashboard", label: "Dashboard / Início", path: "/" },
       { id: "telhas_producao", label: "Produção Geral", path: "/producao" },
-      { id: "telhas_estoque_dashboard", label: "Estoque por Espessura", path: "/estoque-dashboard" },
       { id: "telhas_bobinas", label: "Bobinas", path: "/bobinas" },
       { id: "telhas_isopor", label: "Estoque Isopor (EPS)", path: "/isopor" },
       { id: "telhas_cola", label: "Cola", path: "/cola" },
@@ -27,7 +26,6 @@ export const ESTRUTURA_ABAS_APLICATIVOS = [
       { id: "cd_catalogo", label: "Catálogo", path: "/corte-dobra/catalogo" },
       { id: "cd_desenvolvimento", label: "Desenvolvimento", path: "/corte-dobra/desenvolvimento" },
       { id: "cd_producao", label: "Produção Geral", path: "/corte-dobra/producao" },
-      { id: "cd_estoque_dashboard", label: "Estoque por Espessura", path: "/corte-dobra/estoque-dashboard" },
       { id: "cd_retalhos", label: "Retalhos", path: "/corte-dobra/retalhos" },
       { id: "cd_calculos", label: "Cálculos", path: "/corte-dobra/calculos" },
       { id: "cd_bobinas", label: "Bobinas", path: "/corte-dobra/bobinas" },

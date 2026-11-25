@@ -19,7 +19,6 @@ const ICON_MAP = {
 const FIXED_NAV = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
   { path: "/producao", label: "Produção", icon: Factory },
-  { path: "/estoque-dashboard", label: "Estoque por Espessura", icon: Layers },
   { path: "/bobinas", label: "Bobinas", icon: Circle },
   { path: "/isopor", label: "Estoque Isopor", icon: Snowflake },
   { path: "/cola", label: "Cola", icon: FlaskConical },

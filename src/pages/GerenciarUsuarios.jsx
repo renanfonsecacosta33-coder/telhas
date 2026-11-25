@@ -129,16 +129,13 @@ const ROLE_COLORS = {
 // APLICATIVOS DA TELA INICIAL (MENU)
 // ----------------------------------------------------
 export const APLICATIVOS_MENU = [
+  { key: "app_central_pcp",    title: "Central PCP",          desc: "Aba Mãe · Fila FIFO de pedidos Odoo e distribuição",      icon: Inbox,        gradient: "from-slate-800 to-slate-900", iconColor: "text-orange-400" },
   { key: "app_fabrica_telhas",  title: "Barracão Telhas",      desc: "Operação, máquinas e produção de telhas",                   icon: Factory,      gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
   { key: "app_corte_dobra",    title: "Barracão C&D",         desc: "Operação, máquinas e produção de corte e dobra",           icon: Scissors,     gradient: "from-slate-800 to-slate-900", iconColor: "text-white" },
   { key: "app_expedicao",      title: "Expedição",            desc: "Recebimento, estoque de material acabado e frisada",       icon: PackageCheck, gradient: "from-slate-800 to-slate-900", iconColor: "text-teal-400" },
-  { key: "app_hora_extra",     title: "Hora Extra",           desc: "Exibe o cartão Hora Extra & Ponto no menu inicial.",       icon: Clock,        gradient: "from-slate-800 to-slate-900", iconColor: "text-amber-400" },
   { key: "app_logistica",      title: "Logística",            desc: "Expedição, cargas, romaneios e frota",                    icon: Truck,        gradient: "from-slate-800 to-slate-900", iconColor: "text-emerald-400" },
   { key: "app_consulta_estoque",title: "Estoque Rápido",      desc: "Consulte saldo e realize reservas de bobinas",           icon: BookmarkPlus, gradient: "from-slate-800 to-slate-900", iconColor: "text-blue-400" },
   { key: "app_painel_vendedor",title: "Painel de Vendas",    desc: "Visão geral, metas, comissões e histórico",               icon: BarChart3,    gradient: "from-slate-800 to-slate-900", iconColor: "text-indigo-400" },
-  { key: "app_dashboard_ajl",  title: "Dashboard AJL",       desc: "Painel principal de indicadores e metas",                 icon: LayoutDashboard,gradient:"from-slate-800 to-slate-900",iconColor:"text-orange-400"},
-  { key: "app_gerencia_fabricas",title:"Gerencial",           desc: "Controle avançado, OEE e eficiência",                    icon: Settings,     gradient: "from-slate-800 to-slate-900", iconColor: "text-amber-400" },
-  { key: "app_control_tower",  title: "Painel Administrativo",desc: "Acesso irrestrito às configurações do ERP",              icon: ShieldAlert,  gradient: "from-slate-800 to-slate-900", iconColor: "text-rose-400" },
   { key: "app_gestao_usuarios",title: "Usuários",             desc: "Permissões, layouts e acessos Odoo-style",               icon: Users,        gradient: "from-slate-800 to-slate-900", iconColor: "text-purple-400" },
 ];
 
