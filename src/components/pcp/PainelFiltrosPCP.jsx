@@ -161,7 +161,7 @@ export default function PainelFiltrosPCP({
   const temAtrasados = (stats?.atrasados || 0) > 0;
 
   return (
-    <aside className="w-full lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-60 shrink-0 bg-slate-900 text-slate-300 px-3.5 py-4 lg:overflow-y-auto flex flex-col text-[13px] font-medium no-scrollbar select-none">
+    <aside className="w-full lg:fixed lg:top-[57px] lg:bottom-0 lg:left-0 lg:z-20 lg:w-60 shrink-0 bg-slate-900 text-slate-300 px-3.5 py-4 lg:overflow-y-auto flex flex-col text-[13px] font-medium no-scrollbar select-none">
       
       {/* 1. FILIAIS */}
       <Sec label="Filiais" icon={Globe}>

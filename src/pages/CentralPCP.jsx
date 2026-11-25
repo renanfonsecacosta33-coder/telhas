@@ -15,6 +15,7 @@ import { executarAuditoriaDiariaCompleta, obterUltimoRelatorioAuditoria } from "
 import BotaoDevolverLotePCP from "@/components/pcp/BotaoDevolverLotePCP";
 import PainelFiltrosPCP from "@/components/pcp/PainelFiltrosPCP";
 import PcpHeroTools from "@/components/pcp/PcpHeroTools";
+import EcosystemHeaderBar from "@/components/layout/EcosystemHeaderBar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2529,9 +2530,11 @@ export default function CentralPCP() {
   const IconeTipoBusca = tipoBuscaAtual.icon;
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
-      {/* Painel Lateral de Filtros (rail fixa escura) */}
-      <PainelFiltrosPCP
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col">
+      <EcosystemHeaderBar user={filialCtx?.user} />
+      <div className="flex-1 relative">
+        {/* Painel Lateral de Filtros (rail fixa escura) */}
+        <PainelFiltrosPCP
         temAcessoGlobalCentrais={temAcessoGlobalCentrais}
         statsLoja={statsLoja}
         filiaisPcpExibidas={filiaisPcpExibidas}
@@ -3470,6 +3473,7 @@ export default function CentralPCP() {
         onConfirmarPrioridadeEDistribuir={handleConfirmarPrioridadeObrigatoria}
         salvando={salvandoPrioridadeObrigatoria}
       />
+      </div>
     </div>
   );
 }

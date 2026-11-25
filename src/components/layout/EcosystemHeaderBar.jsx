@@ -9,7 +9,7 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, PackageCheck, Factory, Home, ArrowLeftRight, Sun, Moon, Search } from "lucide-react";
+import { ChevronDown, PackageCheck, Factory, Home, ArrowLeftRight, Sun, Moon, Search, Inbox } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 
 export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar, children }) {
@@ -32,7 +32,8 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
   // Detectar setor ativo pelo caminho da URL
   const isExpedicao = location.pathname.startsWith("/expedicao");
   const isCorteDobra = location.pathname.startsWith("/corte-dobra");
-  const isTelhas = !isExpedicao && !isCorteDobra;
+  const isPcp = location.pathname.startsWith("/pcp");
+  const isTelhas = !isExpedicao && !isCorteDobra && !isPcp;
 
   let moduloInfo = {
     nome: "Telhas & Perfis",
@@ -41,7 +42,14 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
     route: "/"
   };
 
-  if (isExpedicao) {
+  if (isPcp) {
+    moduloInfo = {
+      nome: "Central PCP",
+      icon: Inbox,
+      color: "bg-purple-600/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+      route: "/pcp"
+    };
+  } else if (isExpedicao) {
     moduloInfo = {
       nome: "Expedição",
       icon: PackageCheck,
@@ -64,11 +72,11 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
     <>
       <header className="sticky top-0 z-30 bg-background border-b border-border px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 shadow-sm relative overflow-hidden">
         {/* Linha Fina Brilhante de Topo do Ecossistema */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-teal-500 via-orange-500 to-blue-500 opacity-80" />
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-500 via-teal-500 via-orange-500 to-blue-500 opacity-80" />
 
         {/* Esquerda: Seletor de Ecossistema */}
         <div className="flex items-center gap-2">
-          {/* Dropdown de Troca Rápida de Ecossistema (Expedição / CD / Telhas) */}
+          {/* Dropdown de Troca Rápida de Ecossistema (PCP / Expedição / CD / Telhas) */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className={`gap-1.5 font-extrabold text-xs h-9 px-3 rounded-xl border ${moduloInfo.color}`}>
@@ -82,6 +90,10 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
                 Ecossistema AJL — Módulos
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/pcp")} className="gap-2 text-xs font-semibold py-2.5 cursor-pointer">
+                <Inbox className="w-4 h-4 text-purple-600" />
+                <span>📋 Central PCP</span>
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/expedicao")} className="gap-2 text-xs font-semibold py-2.5 cursor-pointer">
                 <PackageCheck className="w-4 h-4 text-teal-600" />
                 <span>📦 Expedição & Logística</span>
