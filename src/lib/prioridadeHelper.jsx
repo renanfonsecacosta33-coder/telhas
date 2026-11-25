@@ -438,9 +438,27 @@ export function classificarCategoriaDiaPedido(pedido, selectedDay) {
   }
 
   const dataRaw = getDataProgramadaPcp(pedido) || (pedido.data ? String(pedido.data).slice(0, 10) : "") || (pedido.data_entrega ? String(pedido.data_entrega).slice(0, 10) : "");
+  const dataLimpa = dataRaw ? dataRaw.slice(0, 10) : "";
+
+  // 🔒 REGRA AJL: Se o pedido ainda está SEM PRIORIDADE definida pelo PCP, o badge principal DEVE estampar "⚠️ SEM PRIORIDADE"!
+  if (!hasPrioridadeDefinida(pedido)) {
+    let diaMes = "";
+    if (dataLimpa) {
+      try {
+        const p = dataLimpa.split("-");
+        if (p.length === 3) diaMes = ` (${p[2]}/${p[1]})`;
+      } catch {}
+    }
+    return {
+      categoria: "SEM_PRIORIDADE",
+      label: `⚠️ SEM PRIORIDADE${diaMes}`,
+      badgeCls: "bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-400 font-black",
+      pesoVisual: 99
+    };
+  }
 
   // 5. Sem Data Definida
-  if (!dataRaw || dataRaw === "") {
+  if (!dataLimpa || dataLimpa === "") {
     return {
       categoria: "SEM_DATA",
       label: "⏳ SEM DATA PCP",
@@ -448,8 +466,6 @@ export function classificarCategoriaDiaPedido(pedido, selectedDay) {
       pesoVisual: 5
     };
   }
-
-  const dataLimpa = dataRaw.slice(0, 10);
 
   // 2. Atrasado (Dias Anteriores)
   if (dataLimpa < hoje) {
