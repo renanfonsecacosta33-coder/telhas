@@ -3118,7 +3118,7 @@ export default function CentralPCP() {
       <PcpDeferredDialogs dialogs={{
         detalhe: {
           pedido: pedidoSelecionado,
-          progressoReal: detalheOpen && pedidoSelecionado ? calcularProgressoRealPedido(pedidoSelecionado, pedidosProducao, ordensCD) : null,
+          progressoReal: detalheOpen && pedidoSelecionado ? calcularProgressoRealPedido(pedidoSelecionado, pedidosProducao, ordensCD) : null, pedidosProducao, ordensCD,
           open: detalheOpen, onOpenChange: setDetalheOpen,
           onDistribuir: iniciarDistribuicaoComRoteamento, distribuindo,
           onExcluirOS: handleExcluirOS, onRetirarFila: handleRetirarFila, onDevolverPCP: handleDevolverPCP,
