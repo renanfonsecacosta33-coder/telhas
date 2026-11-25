@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target, Truck, Lock, FileDown } from "lucide-react";
+import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target, Truck, Lock, FileDown } from "lucide-react";
 import { exportarRelatorioEntregasCSV } from "@/lib/relatorioEntregasHelper";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
@@ -456,10 +456,10 @@ export default function CentralPCP() {
       }
     },
     placeholderData: (prev) => prev,
-    staleTime: 45000,
+    staleTime: 120000,
     gcTime: 1000 * 60 * 60 * 24,
-    retry: 3,
-    refetchInterval: 60000
+    retry: false,
+    refetchInterval: 180000, refetchIntervalInBackground: false
   });
 
   const { data: chapasEstoque = EMPTY_LIST } = useQuery({
@@ -481,10 +481,10 @@ export default function CentralPCP() {
       }
     },
     placeholderData: (prev) => prev,
-    staleTime: 45000,
+    staleTime: 120000,
     gcTime: 1000 * 60 * 60 * 24,
-    retry: 3,
-    refetchInterval: 60000
+    retry: false,
+    refetchInterval: 180000, refetchIntervalInBackground: false
   });
 
   // Pré-baixas acumuladas em tempo real de todas as OPs ativas (Telhas + Corte e Dobra)

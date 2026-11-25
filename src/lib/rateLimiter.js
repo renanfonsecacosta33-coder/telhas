@@ -1,7 +1,7 @@
 /**
  * Fila global de requisições ao servidor.
  *
- * O servidor aceita ~140 requisições por minuto por usuário. As telas do PCP e
+ * O servidor aceita 70 requisições de listagem por minuto por usuário. As telas do PCP e
  * dos painéis abrem várias listagens ao mesmo tempo (fila, OPs das máquinas,
  * bobinas, chapas, estoque), e uma rajada estourava o limite (erro 429:
  * "Rate limit exceeded: entity_list ...").
@@ -16,8 +16,10 @@
 const MAX_CONCORRENTES = 10;
 const RESERVA_PRIORITARIA = 3;
 const JANELA_MS = 60000;
-// Teto generoso para não travar requisições legítimas do usuário
-const MAX_POR_JANELA = 120;
+// Teto abaixo do limite do servidor (70/min) para nunca chegar no 429
+const MAX_POR_JANELA = 58;
+// A tela do usuário pode ir um pouco além do fundo, mas também tem teto
+const MAX_PRIORITARIA = 66;
 const MAX_TENTATIVAS = 3;
 
 let ativos = 0;
@@ -102,7 +104,7 @@ function despachar(tarefa) {
 function processarFila() {
   // 1) VIA EXPRESSA (CLIQUES E MUTAÇÕES DO USUÁRIO):
   // Despacha instantaneamente com prioridade máxima (0ms de espera) sem esperar janela de background!
-  while (filaPrioritaria.length && ativos < MAX_CONCORRENTES) {
+  while (filaPrioritaria.length && ativos < MAX_CONCORRENTES && janelaDisponivel(MAX_PRIORITARIA)) {
     despachar(filaPrioritaria.shift());
   }
 

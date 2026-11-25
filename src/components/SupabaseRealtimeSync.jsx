@@ -63,7 +63,7 @@ export default function SupabaseRealtimeSync() {
           refetchType: document.hidden ? 'none' : 'active'
         });
       };
-      timer = setTimeout(executar, Math.max(1200, 8000 - (Date.now() - ultimoDisparo)));
+      timer = setTimeout(executar, Math.max(3000, 8000 - (Date.now() - ultimoDisparo)));
     };
 
     // Ao voltar para a aba, atualiza o que ficou pendente enquanto ela estava oculta.
