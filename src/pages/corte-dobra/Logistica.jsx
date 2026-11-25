@@ -45,28 +45,28 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   // Fetch orders from Telhas — pendente, em_producao, finalizado (not cancelado)
   const { data: pedidosTelhas = [], isLoading: loadingTelhas } = useQuery({
     queryKey: ["logistica-telhas", filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 300),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
+    refetchInterval: 60000,
   });
 
   // Fetch orders from CD — pendente, em_producao, finalizado (not cancelado)
   const { data: ordensMaq = [], isLoading: loadingMaq } = useQuery({
     queryKey: ["logistica-cd-maq", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: { $in: ["pendente", "aguardando_corte", "em_producao", "finalizado"] } }, "-data_finalizacao", 300),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: { $in: ["pendente", "aguardando_corte", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
+    refetchInterval: 60000,
   });
 
   const { data: ordensDesb = [], isLoading: loadingDesb } = useQuery({
     queryKey: ["logistica-cd-desb", filialAtiva],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 300),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
+    refetchInterval: 60000,
   });
 
   // Fetch all cargas
   const { data: cargas = [], isLoading: loadingCargas } = useQuery({
     queryKey: ["cargas", filialAtiva],
     queryFn: () => base44.entities.Carga.filter({ unidade: filialAtiva }, "-data_criacao", 100),
-    refetchInterval: 10000,
+    refetchInterval: 60000,
   });
 
   // Fetch rotas de entrega para o DateNavigatorStrip
@@ -78,7 +78,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         "-data_criacao",
         50
       ),
-    refetchInterval: 20000,
+    refetchInterval: 60000,
   });
 
   // Normalize all items

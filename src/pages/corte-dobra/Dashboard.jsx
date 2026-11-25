@@ -43,8 +43,8 @@ export default function DashboardCD() {
 
   const { data: ordens = [], isLoading } = useQuery({
     queryKey: ["ordens-desbobinadeira-dash"],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 500),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 300),
+    refetchInterval: 60000,
   });
 
   const { data: bobinas = [] } = useQuery({

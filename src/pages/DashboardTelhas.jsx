@@ -126,7 +126,7 @@ export default function DashboardTelhas() {
         return [];
       }
     },
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   // 2. Ordens de Venda & PCP (PedidoOdoo)
@@ -134,13 +134,13 @@ export default function DashboardTelhas() {
     queryKey: ["pedidos-odoo-dash-telhas", filialAtiva],
     queryFn: async () => {
       try {
-        const raw = await base44.entities.PedidoOdoo.list("-data_recebimento", 1000);
+        const raw = await base44.entities.PedidoOdoo.list("-data_recebimento", 400);
         return Array.isArray(raw) ? raw : [];
       } catch {
         return [];
       }
     },
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   // 3. Bobinas de Telhas ativas
@@ -149,10 +149,10 @@ export default function DashboardTelhas() {
     queryFn: async () => {
       let raw = [];
       try {
-        raw = await base44.entities.Bobina.list("-created_date", 1000);
+        raw = await base44.entities.Bobina.list("-created_date", 400);
       } catch {
         try {
-          raw = await base44.entities.Bobina.filter({}, "-created_date", 1000);
+          raw = await base44.entities.Bobina.filter({}, "-created_date", 400);
         } catch {
           raw = [];
         }
@@ -160,7 +160,7 @@ export default function DashboardTelhas() {
       const telhas = (Array.isArray(raw) ? raw : []).filter(b => b && !b.arquivada && b.setor !== "corte_dobra");
       return telhas.filter(b => matchFilial(b.unidade));
     },
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   // 4. Estoque de Isopor (EPS)

@@ -170,12 +170,12 @@ export default function ProducaoCD() {
   const { data: ordens = [], isLoading, isFetching: isFetchingDesb, refetch: refetchDesb } = useQuery({
     queryKey: ["ordens-desbobinadeira", filialAtiva],
     queryFn: async () => {
-      const todos = await base44.entities.OrdemDesbobinadeira.list("-data", 500).catch(() => []);
+      const todos = await base44.entities.OrdemDesbobinadeira.list("-data", 300).catch(() => []);
       if (!filialAtiva || filialAtiva === "todas") return todos;
       return todos.filter(o => (o.unidade || "Matriz AJL") === filialAtiva);
     },
-    refetchInterval: 10000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 15000,
     placeholderData: (prev) => prev,
   });
 
@@ -183,12 +183,12 @@ export default function ProducaoCD() {
   const { data: ordensMaq = [], isLoading: isLoadingMaq, isFetching: isFetchingMaq, refetch: refetchMaq } = useQuery({
     queryKey: ["ordens-maquina-cd", filialAtiva],
     queryFn: async () => {
-      const todos = await base44.entities.OrdemMaquinaCD.list("-data", 500).catch(() => []);
+      const todos = await base44.entities.OrdemMaquinaCD.list("-data", 300).catch(() => []);
       if (!filialAtiva || filialAtiva === "todas") return todos;
       return todos.filter(o => (o.unidade || "Matriz AJL") === filialAtiva);
     },
-    refetchInterval: 10000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 15000,
     placeholderData: (prev) => prev,
   });
 

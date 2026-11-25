@@ -17,7 +17,7 @@ export default function PainelSolicitacoesProducao({ maquina, user }) {
     queryFn: () => base44.entities.SolicitacaoProducao.filter({
       maquina, unidade: filialAtiva, status: "pendente"
     }, "-created_date", 20),
-    refetchInterval: 8000,
+    refetchInterval: 30000,
   });
 
   const avaliarMutation = useMutation({

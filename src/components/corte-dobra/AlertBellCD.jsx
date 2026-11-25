@@ -45,15 +45,15 @@ export default function AlertBellCD({ user }) {
 
   const { data: ordensMaquina = [] } = useQuery({
     queryKey: ["alert-ordens-maquina", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
-    refetchInterval: 30000,
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 150),
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 60000),
     enabled: !!isGestor,
   });
 
   const { data: ordensDesbob = [] } = useQuery({
     queryKey: ["alert-ordens-desbob", filialAtiva],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 500),
-    refetchInterval: 30000,
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 150),
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 60000),
     enabled: !!isGestor,
   });
 
@@ -98,29 +98,29 @@ export default function AlertBellCD({ user }) {
   // ── Material em falta: buscar OPs aguardando material ──
   const { data: opsDesbAguardando = [] } = useQuery({
     queryKey: ["ops-desb-aguardando-material", filialAtiva],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: "aguardando_material" }, "-data", 200),
-    refetchInterval: 30000,
+    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: "aguardando_material" }, "-data", 100),
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 60000),
     enabled: !!isGestor,
   });
 
   const { data: opsMaqAguardando = [] } = useQuery({
     queryKey: ["ops-maq-aguardando-material", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: "aguardando_material" }, "-data", 200),
-    refetchInterval: 30000,
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: "aguardando_material" }, "-data", 100),
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 60000),
     enabled: !!isGestor,
   });
 
   const { data: bobinasAlert = [] } = useQuery({
     queryKey: ["bobinas-alert-material", filialAtiva],
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
-    refetchInterval: 30000,
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 60000),
     enabled: !!isGestor,
   });
 
   const { data: chapasAlert = [] } = useQuery({
     queryKey: ["chapas-alert-material", filialAtiva],
     queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }),
-    refetchInterval: 30000,
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 60000),
     enabled: !!isGestor,
   });
 

@@ -92,26 +92,29 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
     queryKey: ["ordens-desbobinadeira", filialAtiva],
     queryFn: () => {
       const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
-      return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 500);
+      return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 300);
     },
-    refetchInterval: 15000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 15000,
     refetchOnWindowFocus: false,
   });
 
   // Inscrição em tempo real para novas ordens ou alterações na Desbobinadeira
   useEffect(() => {
     let unsubscribe = null;
+    let timerRef = null;
     try {
       if (base44.entities?.OrdemDesbobinadeira?.subscribe) {
         unsubscribe = base44.entities.OrdemDesbobinadeira.subscribe(() => {
-          refetch();
+          if (timerRef) return;
+          timerRef = setTimeout(() => { timerRef = null; refetch(); }, 10000);
         });
       }
     } catch (e) {
       console.warn("Realtime subscribe OrdemDesbobinadeira:", e);
     }
     return () => {
+      if (timerRef) clearTimeout(timerRef);
       if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [refetch]);
@@ -144,10 +147,10 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
     queryKey: ["ordens-maquina-cd", filialAtiva],
     queryFn: () => {
       const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
-      return base44.entities.OrdemMaquinaCD.filter(filter, "-data", 500);
+      return base44.entities.OrdemMaquinaCD.filter(filter, "-data", 300);
     },
-    refetchInterval: 15000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 15000,
     refetchOnWindowFocus: false,
   });
 
@@ -159,9 +162,9 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       if (filialAtiva && filialAtiva !== "todas") {
         filter.unidade = filialAtiva;
       }
-      return base44.entities.Bobina.filter(filter, "-created_date", 500);
+      return base44.entities.Bobina.filter(filter, "-created_date", 300);
     },
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
   const bobinaCustoMap = useMemo(() => {
     const m = {};
@@ -179,7 +182,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
       }
       return base44.entities.PedidoOdoo.filter(filter, "-data_recebimento", 500);
     },
-    refetchInterval: 20000,
+    refetchInterval: 60000,
   });
 
   const pedidosOdooMap = useMemo(() => {
@@ -209,8 +212,8 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   // Consulta de chapas geradas no estoque da Chaparia para validação cruzada
   const { data: chapasDoEstoque = [] } = useQuery({
     queryKey: ["chapas-cd", filialAtiva],
-    queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }, "-created_date", 500),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.ChapaCD.filter({ unidade: filialAtiva }, "-created_date", 300),
+    refetchInterval: 30000,
   });
   const chapaMapPorOrdem = useMemo(() => {
     const map = {};

@@ -60,45 +60,45 @@ export default function VendedorDashboard() {
     } catch {}
   };
 
-  // 1. Pedidos recebidos do Odoo ERP (limite de 5000 para sincronizar toda a base sem perdas)
+  // 1. Pedidos recebidos do Odoo ERP (limite otimizado para não estourar rate limit)
   const { data: pedidosOdooRaw = [], isLoading: loadingOdoo, refetch: refetchOdoo } = useQuery({
     queryKey: ["pedidos-odoo-vendedor"],
-    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 5000),
-    refetchInterval: 10000,
+    queryFn: () => base44.entities.PedidoOdoo.list("-data_recebimento", 300),
+    refetchInterval: 60000,
   });
 
   // 2. Ordens de chão de fábrica (Telhas e Corte & Dobra) para cruzar fotos, operadores e bobinas
   const { data: ordensTelhas = [], isLoading: loadingTelhas } = useQuery({
     queryKey: ["ordens-telhas-vendedor"],
-    queryFn: () => base44.entities.Pedido.list("-data", 2000),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.Pedido.list("-data", 300),
+    refetchInterval: 60000,
   });
 
   const { data: opsDesbob = [], isLoading: loadingDesbob } = useQuery({
     queryKey: ["ops-desbob-vendedor"],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 2000),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.OrdemDesbobinadeira.list("-data", 300),
+    refetchInterval: 60000,
   });
 
   const { data: opsMaquina = [], isLoading: loadingMaquina } = useQuery({
     queryKey: ["ops-maquina-vendedor"],
-    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 2000),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.OrdemMaquinaCD.list("-data", 300),
+    refetchInterval: 60000,
   });
 
   // 3. Catálogo de Bobinas para cruzar rastreabilidade técnica (sem dados de NF/custo)
   const { data: todasBobinas = [] } = useQuery({
     queryKey: ["bobinas-vendedor"],
-    queryFn: () => base44.entities.Bobina.list(),
+    queryFn: () => base44.entities.Bobina.list("-created_date", 300),
     staleTime: 60000,
   });
 
   // 4. Mensagens não lidas de chat
   const { data: msgsNaoLidas = [] } = useQuery({
     queryKey: ["msgs-nao-lidas-vendedor", user?.id],
-    queryFn: () => base44.entities.MensagemChat.filter({ lido: false }, "data_hora", 200),
+    queryFn: () => base44.entities.MensagemChat.filter({ lido: false }, "data_hora", 50),
     enabled: !!user?.id,
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   // Lista de todos os vendedores únicos presentes nos pedidos para os seletores

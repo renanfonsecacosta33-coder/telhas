@@ -98,8 +98,8 @@ export default function DashboardMaquina({ maquina }) {
 
   const { data: todosPedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-dash-maquina", filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 500),
-    refetchInterval: 10000,
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 300),
+    refetchInterval: 30000,
   });
 
   const pedidos = useMemo(() => {

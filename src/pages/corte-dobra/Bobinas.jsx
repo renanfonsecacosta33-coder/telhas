@@ -73,7 +73,7 @@ export default function BobinasCD() {
       // Se retornou vazio ou deu erro, tenta listar geral para pegar bobinas CD com setor vazio
       if (raw.length === 0) {
         try {
-          const resGeral = await base44.entities.Bobina.list("-created_date", 2000);
+          const resGeral = await base44.entities.Bobina.list("-created_date", 500);
           raw = extrairLista(resGeral);
         } catch (errList) {
           console.warn("[BobinasCD] Falha na busca ampla de bobinas:", errList?.message || errList);
@@ -95,8 +95,8 @@ export default function BobinasCD() {
         return cod.startsWith("CD");
       });
     },
-    staleTime: 10000,
-    refetchInterval: 15000,
+    staleTime: 30000,
+    refetchInterval: 60000,
     placeholderData: (prev) => prev,
     retry: (failureCount, err) => {
       const msg = String(err?.message || err || "").toLowerCase();

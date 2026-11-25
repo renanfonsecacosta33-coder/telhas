@@ -68,20 +68,20 @@ export default function DashboardCorteDobraCompleto() {
 
   const { data: ordens = [] } = useQuery({
     queryKey: ["ordens-maquina-cd-dash", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 500),
-    refetchInterval: 15000,
+    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva }, "-data", 300),
+    refetchInterval: 60000,
   });
 
   const { data: ordensDesb = [] } = useQuery({
     queryKey: ["ordens-desb-dash", filialAtiva],
     queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva }, "-data", 300),
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   const { data: bobinas = [] } = useQuery({
     queryKey: ["bobinas-cd-dash-novo", filialAtiva],
     queryFn: () => base44.entities.Bobina.filter({ setor: "corte_dobra", arquivada: false, unidade: filialAtiva }),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   const updateMaq = useMutation({

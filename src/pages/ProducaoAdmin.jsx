@@ -120,11 +120,11 @@ export default function ProducaoAdmin() {
   const { data: pedidos = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ["pedidos", filialAtiva],
     queryFn: async () => {
-      const todos = await base44.entities.Pedido.list("-data", 500).catch(() => []);
+      const todos = await base44.entities.Pedido.list("-data", 350).catch(() => []);
       if (!filialAtiva || filialAtiva === "todas") return todos;
       return todos.filter(p => (p.unidade || "Matriz AJL") === filialAtiva);
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 
   // Reage à alteração de parâmetros da URL (ex: clique no Dashboard para ir ao pedido)

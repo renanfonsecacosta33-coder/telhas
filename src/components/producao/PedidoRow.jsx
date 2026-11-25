@@ -722,8 +722,8 @@ export default function PedidoRow({ pedido: pOriginal, onStatusChange, onUpdate,
     queryFn: () => base44.entities.SolicitacaoProducao.filter({
       pedido_id: p.id, status: "pendente"
     }, "-created_date", 5),
-    enabled: !!p.id,
-    refetchInterval: 10000,
+    enabled: !!p.id && p.status !== "finalizado" && p.status !== "cancelado",
+    refetchInterval: 30000,
   });
 
   useEffect(() => {

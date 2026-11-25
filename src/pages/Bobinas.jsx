@@ -122,7 +122,7 @@ export default function Bobinas() {
       // Se não encontrou ou setor estiver vazio nas bobinas legadas, busca ampla
       if (raw.length === 0) {
         try {
-          const resGeral = await base44.entities.Bobina.list("-created_date", 2000);
+          const resGeral = await base44.entities.Bobina.list("-created_date", 500);
           raw = extrairLista(resGeral);
         } catch (e2) {
           console.warn("[Bobinas] Falha na busca geral de bobinas:", e2?.message || e2);
@@ -145,8 +145,8 @@ export default function Bobinas() {
         return true;
       });
     },
-    staleTime: 10000,
-    refetchInterval: 15000,
+    staleTime: 30000,
+    refetchInterval: 60000,
     placeholderData: (prev) => prev,
     retry: (failureCount, err) => {
       const msg = String(err?.message || err || "").toLowerCase();

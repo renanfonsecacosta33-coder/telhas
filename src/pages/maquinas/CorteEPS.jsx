@@ -140,8 +140,8 @@ export default function CorteEPS() {
   // Busca Pedidos
   const { data: todosPedidos = [], isLoading } = useQuery({
     queryKey: ["pedidos-corte-eps", filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 400),
-    refetchInterval: 10000,
+    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva }, "-data", 300),
+    refetchInterval: 30000,
   });
 
   // Busca Estoque de Isopor

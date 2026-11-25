@@ -444,7 +444,7 @@ export default function CentralPCP() {
         if (c && c.length > 0) return c;
       }
       try {
-        const res = await base44.entities.Bobina.filter({ arquivada: false }, null, 5000);
+        const res = await base44.entities.Bobina.filter({ arquivada: false }, null, 1000);
         if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
         return res;
       } catch (e) {
@@ -469,7 +469,7 @@ export default function CentralPCP() {
         if (c && c.length > 0) return c;
       }
       try {
-        const res = await base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }, null, 5000);
+        const res = await base44.entities.ChapaCD.filter({ status: { $ne: "cancelado" } }, null, 1000);
         if (res && res.length > 0) salvarCacheLocal(CHAVE, res).catch(() => {});
         return res;
       } catch (e) {

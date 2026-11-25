@@ -91,7 +91,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
           if (cacheOffline) return cacheOffline;
         }
         const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
-        const res = await base44.entities.OrdemMaquinaCD.filter(filter, "-data", 500);
+        const res = await base44.entities.OrdemMaquinaCD.filter(filter, "-data", 300);
         salvarCacheLocal(`ordens_cd_${filialAtiva}`, res).catch(() => {});
         return res;
       } catch (fetchErr) {
@@ -100,8 +100,8 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         throw fetchErr;
       }
     },
-    refetchInterval: 15000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 15000,
     placeholderData: (prev) => prev,
     refetchOnWindowFocus: false,
   });
@@ -111,10 +111,10 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     queryKey: ["pedidos-odoo-cd-panel", filialAtiva],
     queryFn: () => {
       const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
-      return base44.entities.PedidoOdoo.filter(filter, "-data_recebimento", 300);
+      return base44.entities.PedidoOdoo.filter(filter, "-data_recebimento", 250);
     },
-    refetchInterval: 25000,
-    staleTime: 20000,
+    refetchInterval: 60000,
+    staleTime: 30000,
   });
 
   const pedidosOdooMap = useMemo(() => {
@@ -218,10 +218,10 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
     queryKey: ["ordens-desbobinadeira", filialAtiva],
     queryFn: () => {
       const filter = (filialAtiva && filialAtiva !== "todas") ? { unidade: filialAtiva } : {};
-      return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 500);
+      return base44.entities.OrdemDesbobinadeira.filter(filter, "-data", 300);
     },
-    refetchInterval: 15000,
-    staleTime: 10000,
+    refetchInterval: 30000,
+    staleTime: 15000,
     placeholderData: (prev) => prev,
     refetchOnWindowFocus: false,
   });

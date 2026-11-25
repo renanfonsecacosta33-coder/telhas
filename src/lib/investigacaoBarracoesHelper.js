@@ -345,11 +345,12 @@ export function useInvestigacaoBarracoes(filialAtiva) {
     queryFn: async () => {
       // PedidoOdoo e ordens das fábricas são pesquisados globalmente para permitir que rotas de qualquer cidade
       // encontrem os pedidos gerados na Matriz AJL ou filiais.
+      // Limite otimizado (400) para economizar dados e respeitar o rate-limit do Base44.
       let [pedidosTelhas, ordensCD, ordensDesbob, pedidosOdoo] = await Promise.all([
-        base44.entities.Pedido.filter({}, "-created_date", 800).catch(() => []),
-        base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 800).catch(() => []),
-        base44.entities.OrdemDesbobinadeira.filter({}, "-created_date", 800).catch(() => []),
-        base44.entities.PedidoOdoo.filter({}, "-created_date", 1000).catch(() => []),
+        base44.entities.Pedido.filter({}, "-created_date", 400).catch(() => []),
+        base44.entities.OrdemMaquinaCD.filter({}, "-created_date", 400).catch(() => []),
+        base44.entities.OrdemDesbobinadeira.filter({}, "-created_date", 400).catch(() => []),
+        base44.entities.PedidoOdoo.filter({}, "-created_date", 400).catch(() => []),
       ]);
 
       return processarMapaBarracoes({
@@ -359,8 +360,9 @@ export function useInvestigacaoBarracoes(filialAtiva) {
         pedidosOdoo,
       });
     },
-    refetchInterval: 10000,
-    staleTime: 5000,
+    refetchInterval: () => (typeof document !== "undefined" && document.hidden ? false : 45000),
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
   });
 
   const mapa = query.data || {};
