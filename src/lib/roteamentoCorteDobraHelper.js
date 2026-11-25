@@ -354,6 +354,53 @@ export async function rotearItensCorteDobraDireto({
  * @param {string} entidadeOrigem - "OrdemMaquinaCD" | "OrdemDesbobinadeira"
  * @returns {Promise<{ avancou: boolean, proximaMaquina?: string, novaOp?: Object, concluido?: boolean }>}
  */
+/**
+ * TRAVA ANTI-DUPLICAÇÃO DA ETAPA SEGUINTE
+ * Verifica se já existe OP viva (não cancelada) da MESMA OF, no MESMO item, na
+ * máquina de destino. Impede que um duplo clique em "Finalizar" (ou um refetch
+ * que repita a finalização) crie duas OPs idênticas na máquina seguinte.
+ */
+async function buscarOpExistenteNaEtapa({ pedidoOdoo, ordemAtual, maquina }) {
+  try {
+    const maqAlvo = String(maquina || "").replace(/[^A-Z0-9]/g, "").toUpperCase();
+    if (!maqAlvo) return null;
+
+    const pedidoId = pedidoOdoo?.id || ordemAtual?.pedido_odoo_id || null;
+    const ofNome = pedidoOdoo?.of_nome || ordemAtual?.of_nome || "";
+    const itemIdx = ordemAtual?.item_idx != null ? Number(ordemAtual.item_idx) : null;
+
+    const consultas = [];
+    if (pedidoId) consultas.push({ pedido_odoo_id: String(pedidoId) });
+    if (ofNome) consultas.push({ of_nome: ofNome });
+    if (!consultas.length) return null;
+
+    const filtro = consultas.length === 1
+      ? { ...consultas[0], status: { $ne: "cancelado" } }
+      : { $or: consultas, status: { $ne: "cancelado" } };
+
+    const [cd, desb] = await Promise.all([
+      base44.entities.OrdemMaquinaCD.filter(filtro, "-created_date", 80).catch(() => []),
+      base44.entities.OrdemDesbobinadeira
+        ? base44.entities.OrdemDesbobinadeira.filter(filtro, "-created_date", 80).catch(() => [])
+        : []
+    ]);
+
+    return [...(cd || []), ...(desb || [])].find(op => {
+      if (!op?.id || String(op.id) === String(ordemAtual.id)) return false;
+      if (op.status === "cancelado") return false;
+      if (op.is_retrabalho) return false;
+      const m = String(op.maquina || "").replace(/[^A-Z0-9]/g, "").toUpperCase();
+      if (m !== maqAlvo) return false;
+      if (itemIdx == null) return true;
+      const idx = op.item_idx != null ? Number(op.item_idx) : null;
+      return idx == null || idx === itemIdx;
+    }) || null;
+  } catch (e) {
+    console.warn("[avancarProximaEtapaRoteiroCD] Falha na trava anti-duplicação:", e);
+    return null;
+  }
+}
+
 export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = "OrdemMaquinaCD") {
   if (!ordemAtual) return { avancou: false };
 
@@ -563,6 +610,13 @@ export async function avancarProximaEtapaRoteiroCD(ordemAtual, entidadeOrigem = 
     ordem_anterior_id: ordemAtual.id,
     ordem_corte_id: ordemAtual.id
   };
+
+  // 🛡️ TRAVA: a etapa seguinte só é criada uma vez. Se já existe OP viva nesta
+  // máquina para esta OF/item, reutiliza (nada de segunda OP duplicada).
+  const opExistenteNaEtapa = await buscarOpExistenteNaEtapa({ pedidoOdoo: pedOdoo, ordemAtual, maquina: maquinaCanonica });
+  if (opExistenteNaEtapa) {
+    return { avancou: false, jaExistia: true, proximaMaquina: maquinaCanonica, novaOp: opExistenteNaEtapa };
+  }
 
   let novaOp = null;
   try {

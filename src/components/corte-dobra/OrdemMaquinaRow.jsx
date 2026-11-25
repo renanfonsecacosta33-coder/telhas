@@ -144,6 +144,8 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
   const [transferirMaquinaOpen, setTransferirMaquinaOpen] = useState(false);
   const [novaMaquinaDestino, setNovaMaquinaDestino] = useState("");
   const [salvandoTransferencia, setSalvandoTransferencia] = useState(false);
+  // Trava de finalização: garante que a OP só é finalizada (e avançada) uma vez
+  const finalizandoRef = useRef(false);
 
   const opcoesMaquinasTransferencia = useMemo(() => {
     return maquinasCDPorFilial(o.unidade);
@@ -463,6 +465,11 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
   };
 
   const finalizarOrdem = async (fotoUrl, prodSeg, modBlankVal, modDescVal) => {
+    // 🛡️ TRAVA: finaliza uma única vez. Segundo clique (ou refetch que repete a
+    // finalização) não pode criar outra OP na próxima máquina.
+    if (finalizandoRef.current || o.status === "finalizado") return;
+    finalizandoRef.current = true;
+
     onUpdate(o.id, {
       status: "finalizado",
       foto_finalizacao_url: fotoUrl,
@@ -528,6 +535,8 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
         console.error("[OrdemMaquinaRow] erro ao finalizar Mini BI:", e?.message || e);
       }
     }
+
+    finalizandoRef.current = false;
   };
 
   const confirmarModificacao = async () => {
