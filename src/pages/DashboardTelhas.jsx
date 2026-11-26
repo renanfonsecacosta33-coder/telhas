@@ -656,7 +656,7 @@ export default function DashboardTelhas() {
       {aba === "producao" && (
         <>
           {/* Metros que ainda faltam colar (EPS e Bandeja) */}
-          <MetrosAColarCard pedidos={pedidosFiltrados} />
+          <MetrosAColarCard pedidos={pedidosFiltrados} pedidosOdoo={odooFiltrados} />
 
           {/* 1. KPIS PRINCIPAIS (HERO GRID) */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
