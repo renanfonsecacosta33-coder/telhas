@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { parseRotaImage } from "@/lib/rotaParser";
+import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -75,7 +76,10 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
     if (!file) return;
     setUploadingRota(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      // Foto de celular (10-20MB) leva muito tempo para subir e para a IA ler.
+      // 2200px a 92% mantém o texto do manifesto legível e envia em segundos.
+      const arquivoOtimizado = await comprimirImagemParaUpload(file, 2200, 0.92);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: arquivoOtimizado });
       setRotaImagemUrl(file_url);
       setRotaImagemNome(file.name);
       await parseRota(file_url);
