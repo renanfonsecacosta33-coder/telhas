@@ -91,37 +91,87 @@ export default async function(req: Request): Promise<Response> {
       );
     }
 
-    // Realiza o disparo HTTP POST para o Odoo
-    console.log(`[solicitarPdfsOdoo] Enviando solicitação ${requestId} com ${pedidosNormalizados.length} pedido(s) para Odoo...`);
-    const respOdoo = await fetch(odooWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${tokenOdoo}`,
-        'x-api-key': tokenOdoo,
-      },
-      body: JSON.stringify(payloadOdoo),
-      signal: AbortSignal.timeout(180000)
-    });
+    // O Odoo leva ~5s por PDF e recusa rajadas de requisições (429). Pedir um
+    // pedido por vez, com fila curta, evita que um número inválido (500)
+    // derrube o lote inteiro e mantém a rota recebendo PDFs em paralelo.
+    const CONCORRENCIA = 3;
+    const TENTATIVAS = 3;
+    const PRAZO_MS = 50000;
+    const inicio = Date.now();
 
-    const odooRespostaTexto = await respOdoo.text();
-    let odooRespostaJson: any = null;
-    try {
-      odooRespostaJson = JSON.parse(odooRespostaTexto);
-    } catch {
-      odooRespostaJson = { raw: odooRespostaTexto };
-    }
+    const pedirPdf = async (pedido: string) => {
+      let status = 0;
+      let motivo = '';
+      for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+        if (Date.now() - inicio > PRAZO_MS) {
+          return { pedido, ok: false, status, motivo: motivo || 'tempo esgotado' };
+        }
+        try {
+          const resp = await fetch(odooWebhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': `Bearer ${tokenOdoo}`,
+              'x-api-key': tokenOdoo,
+            },
+            body: JSON.stringify({
+              ...payloadOdoo,
+              request_id: `${requestId}-${pedido}`,
+              pedidos: [pedido],
+            }),
+            signal: AbortSignal.timeout(30000)
+          });
+          const texto = (await resp.text()).slice(0, 200);
+          if (resp.ok) return { pedido, ok: true, status: resp.status, motivo: '' };
+          status = resp.status;
+          motivo = texto;
+          // 429 (limite do Odoo) e 5xx são passageiros: espera e tenta de novo.
+          if (resp.status === 429 || resp.status >= 500) {
+            await new Promise(r => setTimeout(r, 1200 * tentativa));
+            continue;
+          }
+          return { pedido, ok: false, status, motivo };
+        } catch (err: any) {
+          status = 0;
+          motivo = String(err?.message || err);
+          await new Promise(r => setTimeout(r, 1200 * tentativa));
+        }
+      }
+      return { pedido, ok: false, status, motivo };
+    };
 
-    if (!respOdoo.ok) {
-      console.error(`[solicitarPdfsOdoo] Erro HTTP ${respOdoo.status} retornado pelo Odoo:`, odooRespostaTexto);
+    console.log(`[solicitarPdfsOdoo] ${requestId}: pedindo ${pedidosNormalizados.length} PDF(s) ao Odoo...`);
+    const fila = [...pedidosNormalizados];
+    const resultados: Array<{ pedido: string; ok: boolean; status: number; motivo: string }> = [];
+    await Promise.all(
+      Array.from({ length: Math.min(CONCORRENCIA, fila.length) }, async () => {
+        while (fila.length) {
+          const pedido = fila.shift() as string;
+          resultados.push(await pedirPdf(pedido));
+        }
+      })
+    );
+
+    const enviados = resultados.filter(r => r.ok).map(r => r.pedido);
+    const falhas = resultados
+      .filter(r => !r.ok)
+      .map(r => ({ pedido: r.pedido, status_odoo: r.status, motivo: r.motivo }));
+
+    // Nenhum pedido aceito: só aqui o erro é da integração como um todo.
+    if (enviados.length === 0) {
+      const statusIntegracao = falhas.find(f => f.status_odoo >= 500 || f.status_odoo === 429)?.status_odoo;
+      console.error(`[solicitarPdfsOdoo] ${requestId}: nenhum PDF aceito.`, JSON.stringify(falhas).slice(0, 500));
       return Response.json(
         {
           success: false,
           request_id: requestId,
-          status_odoo: respOdoo.status,
-          message: `Odoo retornou status ${respOdoo.status}. Verifique se o Guilherme já salvou a URL do Base44 no Odoo.`,
-          resposta_odoo: odooRespostaJson
+          status_odoo: statusIntegracao,
+          pedidos: pedidosNormalizados,
+          falhas,
+          message: statusIntegracao
+            ? `O Odoo recusou a solicitação (status ${statusIntegracao}). Nenhum PDF foi gerado.`
+            : 'O Odoo não localizou nenhum dos pedidos desta rota. Confira os números do manifesto.'
         },
         { status: 200 }
       );
@@ -132,9 +182,12 @@ export default async function(req: Request): Promise<Response> {
         success: true,
         request_id: requestId,
         total_pedidos: pedidosNormalizados.length,
-        pedidos: pedidosNormalizados,
-        message: `Solicitação de PDFs enviada ao Odoo com sucesso (${pedidosNormalizados.length} pedidos).`,
-        resposta_odoo: odooRespostaJson
+        enviados: enviados.length,
+        pedidos: enviados,
+        falhas,
+        message: falhas.length
+          ? `${enviados.length} de ${pedidosNormalizados.length} PDFs solicitados. O Odoo não localizou: ${falhas.map(f => f.pedido).join(', ')}.`
+          : `Solicitação de ${enviados.length} PDFs enviada ao Odoo com sucesso.`
       },
       { status: 200 }
     );
