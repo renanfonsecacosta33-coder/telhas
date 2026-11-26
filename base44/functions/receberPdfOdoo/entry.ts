@@ -1,8 +1,5 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-
-// Compara números ignorando "S", espaços, hífens e zeros à esquerda (S05623 = S-5623 = 5623)
-const chaveNumero = (valor: any): string =>
-  String(valor ?? '').replace(/\D/g, '').replace(/^0+/, '');
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.63';
+import { associarPdfRotas, chavePedidoPdf } from '../../shared/logisticaPdfCore.ts';
 
 // Registra o recebimento no histórico do pedido para auditoria por request_id
 const appendHistorico = (atual: any, entrada: any): string => {
@@ -161,143 +158,71 @@ export default async function(req: Request): Promise<Response> {
       );
     }
 
-    // 8. Localização e Associação do Pedido na base da Logística / PCP
-    const numLimpo = pedidoRaw.replace(/^[Ss]0*/, '').replace(/\D/g, '');
-    const chave = chaveNumero(pedidoRaw);
+    // A venda pode estar na rota sem ter OF de fabricação. Nesse caso, o
+    // destino válido do PDF é a própria rota, não um PedidoOdoo fictício.
+    const chave = chavePedidoPdf(pedidoRaw);
+    const resultadoRotas = await associarPdfRotas(
+      base44.asServiceRole.entities.RotaEntrega, pedidoRaw, fileUrl, nomeOriginal
+    );
+    const rotasAtualizadas = resultadoRotas.atualizadas;
+    let pedidosEncontrados = [];
+    let cursor;
+    do {
+      const pagina = await base44.asServiceRole.entities.PedidoOdoo.filter({
+        $or: [
+          { numero_pedido: pedidoRaw },
+          { numero_pedido: { $regex: `^[Ss]?[\\s#-]*0*${chave}\\s*$` } }
+        ]
+      }, { sort: '-created_date', limit: 100, cursor, fields: ['id', 'numero_pedido', 'historico_log'] });
+      pedidosEncontrados.push(...pagina.items);
+      cursor = pagina.has_more ? pagina.next_cursor : null;
+    } while (cursor);
 
-    let pedidosEncontrados: any[] = await base44.asServiceRole.entities.PedidoOdoo.filter({
-      $or: [
-        { numero_pedido: pedidoRaw },
-        { numero_pedido: `S${numLimpo.padStart(5, '0')}` },
-        { numero_pedido: `S${numLimpo}` },
-        { odoo_id: pedidoRaw },
-        ...(numLimpo ? [{ numero_pedido: numLimpo }, { odoo_id: numLimpo }] : [])
-      ]
-    }, '-created_date', 10).catch(() => []);
-
-    // Busca tolerante: compara somente os dígitos (cobre "S05623", "S-05623", "05623", espaços etc.)
-    if (pedidosEncontrados.length === 0 && chave) {
-      const recentes: any[] = await base44.asServiceRole.entities.PedidoOdoo
-        .filter({}, '-created_date', 3000)
-        .catch(() => []);
-      pedidosEncontrados = recentes.filter((p: any) =>
-        chaveNumero(p.numero_pedido) === chave ||
-        chaveNumero(p.numero_oc) === chave ||
-        chaveNumero(p.of_nome) === chave
-      );
+    if (!rotasAtualizadas && pedidosEncontrados.length === 0) {
+      return Response.json({
+        success: false, pedido: pedidoRaw, request_id: requestId || undefined,
+        message: resultadoRotas.falhas.length
+          ? 'O PDF chegou, mas houve falha ao vinculá-lo à rota. Reenvie este pedido.'
+          : 'PDF recebido, mas este pedido não foi encontrado em nenhuma rota nem no PCP.',
+        falhas_rotas: resultadoRotas.falhas
+      }, { status: resultadoRotas.falhas.length ? 500 : 404 });
     }
 
-    if (pedidosEncontrados.length === 0) {
-      // Pedido não localizado na base do Base44: o PDF fica no storage, mas NÃO existe
-      // registro na Logística para recebê-lo. Não é sucesso.
-      console.warn(`[receberPdfOdoo] ${requestId || '-'} | ${pedidoRaw} não existe em PedidoOdoo. Arquivo: ${fileUrl}`);
-      return Response.json(
-        {
-          success: false,
-          pedido: pedidoRaw,
-          request_id: requestId || undefined,
-          message: 'Pedido não encontrado na Logística: não existe registro deste número em PedidoOdoo (o pedido não chegou pelo webhook do Odoo). O PDF foi mantido no storage, mas não foi associado.',
-          chave_buscada: chave,
-          file_url_salvo: fileUrl
-        },
-        { status: 404 }
-      );
-    }
-
-    // Atualiza todos os registros vinculados àquele pedido no Odoo
-    const falhas: any[] = [];
+    const falhas = [];
     let atualizados = 0;
     const entradaLog = {
-      data: new Date().toISOString(),
-      usuario: 'Odoo (PDF)',
-      acao: 'PDF_RECEBIDO',
+      data: new Date().toISOString(), usuario: 'Odoo (PDF)', acao: 'PDF_RECEBIDO',
       detalhes: `request_id=${requestId || '-'} | arquivo=${nomeOriginal} | url=${fileUrl}`
     };
-
-    for (const p of pedidosEncontrados) {
-      try {
-        await base44.asServiceRole.entities.PedidoOdoo.update(p.id, {
-          pdf_pedido_url: fileUrl,
-          pdf_pedido_nome: nomeOriginal,
-          historico_log: appendHistorico(p.historico_log, entradaLog)
-        });
-        atualizados++;
-      } catch (e: any) {
-        falhas.push({ id: p.id, numero_pedido: p.numero_pedido, erro: e?.message || String(e) });
-        console.error(`[receberPdfOdoo] Falha ao atualizar PedidoOdoo ${p.id} (${p.numero_pedido}):`, e);
-      }
-    }
-
-    if (atualizados === 0) {
-      return Response.json(
-        {
-          success: false,
-          pedido: pedidoRaw,
-          request_id: requestId || undefined,
-          message: 'PDF salvo no storage, mas nenhum registro da Logística pôde ser atualizado.',
-          file_url_salvo: fileUrl,
-          pedidos_encontrados: pedidosEncontrados.length,
-          falhas
-        },
-        { status: 500 }
-      );
-    }
-
-    // Confirma a gravação lendo o registro de volta antes de responder sucesso
-    let verificado = false;
-    try {
-      const conf = await base44.asServiceRole.entities.PedidoOdoo.get(pedidosEncontrados[0].id);
-      verificado = String(conf?.pdf_pedido_url || '') === String(fileUrl);
-      if (!verificado) {
-        return Response.json(
-          {
-            success: false,
-            pedido: pedidoRaw,
-            request_id: requestId || undefined,
-            message: 'O PDF foi salvo, mas a confirmação de gravação no pedido falhou. Nada foi associado.',
-            file_url_salvo: fileUrl,
-            pedidos_encontrados: pedidosEncontrados.length,
-            falhas
-          },
-          { status: 500 }
-        );
-      }
-    } catch (eVer: any) {
-      console.warn('[receberPdfOdoo] Não foi possível reler o registro para conferência:', eVer?.message || eVer);
-    }
-
-    // 9. Atualiza rotas de entrega que contenham este pedido
-    let rotasAtualizadas = 0;
-    try {
-      const rotas = await base44.asServiceRole.entities.RotaEntrega.filter({}, '-created_date', 200).catch(() => []);
-      for (const r of rotas) {
-        if (!r.itens_json || (!r.itens_json.includes(pedidoRaw) && (!numLimpo || !r.itens_json.includes(numLimpo)))) {
-          continue;
-        }
+    for (let inicio = 0; inicio < pedidosEncontrados.length; inicio += 6) {
+      await Promise.all(pedidosEncontrados.slice(inicio, inicio + 6).map(async (p) => {
         try {
-          const itens = JSON.parse(r.itens_json || '[]');
-          let alterou = false;
-          const itensAtualizados = itens.map((it: any) => {
-            if (chave && chaveNumero(it.numero_pedido) === chave) {
-              alterou = true;
-              return { ...it, pdf_url: fileUrl, pdf_nome: nomeOriginal };
-            }
-            return it;
+          await base44.asServiceRole.entities.PedidoOdoo.update(p.id, {
+            pdf_pedido_url: fileUrl, pdf_pedido_nome: nomeOriginal,
+            historico_log: appendHistorico(p.historico_log, entradaLog)
           });
-
-          if (alterou) {
-            await base44.asServiceRole.entities.RotaEntrega.update(r.id, {
-              itens_json: JSON.stringify(itensAtualizados)
-            });
-            rotasAtualizadas++;
-          }
-        } catch (eRota: any) {
-          console.warn(`[receberPdfOdoo] Falha ao atualizar rota ${r.id}:`, eRota?.message || eRota);
+          atualizados++;
+        } catch (e) {
+          falhas.push({ id: p.id, numero_pedido: p.numero_pedido, erro: e.message });
         }
-      }
-    } catch (e) {
-      console.warn('[receberPdfOdoo] Falha ao sincronizar rotas:', e);
+      }));
     }
+    // updateMany confirma a associação por comparação de versão da rota.
+    // Sem rota, exige confirmação da persistência no PCP antes de dar sucesso.
+    let verificado = rotasAtualizadas > 0;
+    if (!verificado && atualizados > 0) {
+      const idsComFalha = new Set(falhas.map(f => f.id));
+      const primeiro = pedidosEncontrados.find(p => !idsComFalha.has(p.id));
+      const confirmado = await base44.asServiceRole.entities.PedidoOdoo.get(primeiro.id);
+      verificado = confirmado.pdf_pedido_url === fileUrl;
+    }
+    if (!verificado) {
+      return Response.json({ success: false, pedido: pedidoRaw, request_id: requestId,
+        message: 'Não foi possível confirmar a associação do PDF.',
+        falhas, falhas_rotas: resultadoRotas.falhas
+      }, { status: 500 });
+    }
+    console.log(`[receberPdfOdoo] ${requestId} | ${pedidoRaw} | rotas=${rotasAtualizadas} | PCP=${atualizados}`);
 
     // 10. Resposta positiva definitiva confirmando armazenamento e associação
     return Response.json(
@@ -311,6 +236,8 @@ export default async function(req: Request): Promise<Response> {
         pedidos_atualizados: atualizados,
         pedidos_com_falha: falhas,
         rotas_atualizadas: rotasAtualizadas,
+        falhas_rotas: resultadoRotas.falhas,
+        sem_of_no_pcp: pedidosEncontrados.length === 0,
         gravacao_confirmada: verificado
       },
       { status: 200 }

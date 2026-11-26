@@ -83,7 +83,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
       const res = rawRes?.data || rawRes;
       if (res?.success) {
         toast.success(
-          `Solicitação enviada ao Odoo. Os PDFs aparecerão na rota conforme forem recebidos. Referência: ${res.request_id}.`,
+          res.ja_disponiveis ? res.message : `Solicitação de ${res.total_pedidos} PDFs enviada ao Odoo. A rota será atualizada conforme chegarem. Referência: ${res.request_id}.`,
           { id: "puxar-pdfs", duration: 6000 }
         );
 

@@ -1,4 +1,5 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.63';
+import { normalizarPedidoPdf, numeroOdooRota } from '../../shared/logisticaPdfCore.ts';
 
 /**
  * Função de Solicitação de PDFs ao Odoo ERP (Base44 -> Odoo)
@@ -16,52 +17,34 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const usuario = await base44.auth.me().catch(e => e.status === 401 ? null : Promise.reject(e));
+    if (!usuario) return Response.json({ success: false, message: 'Não autenticado.' }, { status: 401 });
     const body = await req.json().catch(() => ({}));
 
     const rotaId = body.rota_id || '';
     const pedidosEntrada = Array.isArray(body.pedidos) ? body.pedidos : [];
     const urlDestinoManual = body.odoo_webhook_url || '';
 
-    // Se pedidos não foram informados mas rota_id foi, extrai da rota
+    // A rota salva é a fonte dos números Odoo e dos PDFs já disponíveis.
+    // Repetir a ação não reenvia os documentos que já chegaram.
     let pedidos = [...pedidosEntrada];
     let rotaTitulo = '';
-
-    if (pedidos.length === 0 && rotaId) {
-      try {
-        const rota = await base44.asServiceRole.entities.RotaEntrega.get(rotaId);
-        if (rota) {
-          rotaTitulo = rota.titulo || '';
-          const itens = JSON.parse(rota.itens_json || '[]');
-          pedidos = itens.map((it: any) => it.numero_pedido).filter(Boolean);
-        }
-      } catch (e) {
-        console.warn('[solicitarPdfsOdoo] Falha ao ler rota:', e);
-      }
+    if (rotaId) {
+      const rota = await base44.entities.RotaEntrega.get(rotaId)
+        .catch(e => e.status === 404 ? null : Promise.reject(e));
+      if (!rota) return Response.json({ success: false, message: 'Rota não encontrada.' }, { status: 404 });
+      rotaTitulo = rota.titulo || '';
+      const itens = JSON.parse(rota.itens_json || '[]');
+      pedidos = itens.filter(item => !item.pdf_url).map(numeroOdooRota).filter(Boolean);
+      if (pedidos.length === 0) return Response.json({
+        success: true, total_pedidos: 0, pedidos: [], ja_disponiveis: true,
+        message: 'Não há PDFs pendentes de solicitação nesta rota.'
+      });
     }
-
-    if (pedidos.length === 0) {
-      return Response.json(
-        { success: false, message: 'Nenhum pedido informado para solicitação de PDF.' },
-        { status: 400 }
-      );
-    }
-
-    // Normaliza os números para o padrão do Odoo (ex: "07671" -> "S07671", "7671" -> "S07671")
-    const pedidosNormalizados: string[] = Array.from(
-      new Set(
-        pedidos.map((p: any) => {
-          const str = String(p).trim().toUpperCase();
-          if (str.startsWith('S') && /^[A-Z0-9]+$/.test(str)) {
-            return str;
-          }
-          const digitos = str.replace(/\D/g, '');
-          if (digitos) {
-            return `S${digitos.padStart(5, '0')}`;
-          }
-          return str;
-        }).filter(Boolean)
-      )
-    );
+    const pedidosNormalizados = [...new Set(pedidos.map(normalizarPedidoPdf).filter(Boolean))];
+    if (pedidosNormalizados.length === 0) return Response.json({
+      success: false, message: 'Nenhum número de pedido Odoo válido para solicitar.'
+    }, { status: 400 });
 
     // Gera um request_id único e rastreável
     const agora = new Date();
@@ -118,7 +101,8 @@ export default async function(req: Request): Promise<Response> {
         'Authorization': `Bearer ${tokenOdoo}`,
         'x-api-key': tokenOdoo,
       },
-      body: JSON.stringify(payloadOdoo)
+      body: JSON.stringify(payloadOdoo),
+      signal: AbortSignal.timeout(180000)
     });
 
     const odooRespostaTexto = await respOdoo.text();
