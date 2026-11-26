@@ -44,6 +44,7 @@ export default async function(req: Request): Promise<Response> {
 
     // 2. Autenticação (Header Bearer, x-api-key, query param ?token=... ou campo no form-data)
     const tokenEsperado = Deno.env.get('LOGISTICA_PDF_TOKEN') || Deno.env.get('ODOO_INTEGRATION_TOKEN') || 'AJL_ok32kf46ncwo15_PDF';
+    let tokenRecebido = '';
     if (tokenEsperado) {
       const authHeader = req.headers.get('Authorization') || '';
       const apiKeyHeader = req.headers.get('x-api-key') || '';
@@ -51,7 +52,7 @@ export default async function(req: Request): Promise<Response> {
       const queryToken = url.searchParams.get('token') || '';
 
       const bearerMatch = authHeader.replace(/^Bearer\s+/i, '').trim();
-      const tokenRecebido = apiKeyHeader.trim() || bearerMatch || queryToken.trim();
+      tokenRecebido = apiKeyHeader.trim() || bearerMatch || queryToken.trim();
 
       // Se foi enviado via header ou query param e não confere:
       if (tokenRecebido && tokenRecebido !== tokenEsperado.trim()) {
@@ -84,6 +85,11 @@ export default async function(req: Request): Promise<Response> {
         { success: false, message: 'Falha ao interpretar multipart/form-data.' },
         { status: 400 }
       );
+    }
+
+    const tokenForm = String(formData.get('token') || '').trim();
+    if ((tokenRecebido || tokenForm) !== tokenEsperado.trim()) {
+      return Response.json({ success: false, message: 'Token do Odoo ausente ou inválido.' }, { status: 401 });
     }
 
     const requestId = formData.get('request_id')?.toString()?.trim() || '';
