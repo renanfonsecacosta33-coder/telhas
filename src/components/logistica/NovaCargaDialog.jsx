@@ -106,7 +106,8 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
           setStatusPdfsOdoo("sucesso");
           toast.success(`✅ Solicitação de PDFs disparada ao Odoo (${pedidosParaPdf.length} pedidos)!`);
         } else {
-          setStatusPdfsOdoo("sucesso"); // mesmo que retorno seja parcial, foi disparado
+          setStatusPdfsOdoo("erro");
+          toast.error(res?.data?.message || "Odoo não confirmou a solicitação dos PDFs.");
         }
       })
       .catch((err) => {
@@ -151,7 +152,7 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
         ? filialAtiva
         : "Matriz AJL";
 
-      await base44.entities.RotaEntrega.create({
+      const rotaSalva = await base44.entities.RotaEntrega.create({
         titulo: parsed.titulo || "Rota de Entrega",
         rota_imagem_url: rotaImagemUrl,
         rota_imagem_nome: rotaImagemNome,
@@ -182,16 +183,14 @@ export default function NovaCargaDialog({ open, onClose, filialAtiva }) {
         })
         .catch(() => {});
 
-      // Solicita automaticamente os PDFs dos pedidos ao Odoo ERP
-      const pedidosParaPdf = (parsed.itens || []).map((i) => i.numero_pedido).filter(Boolean);
-      if (pedidosParaPdf.length > 0) {
-        base44.functions
-          .invoke("solicitarPdfsOdoo", {
-            pedidos: pedidosParaPdf,
-            rota_titulo: parsed.titulo || "Rota de Entrega",
-          })
-          .catch(() => {});
-      }
+      // A rota já existe quando os PDFs chegam, inclusive para vendas sem OF.
+      // O servidor usa os números Odoo da rota e solicita somente os faltantes.
+      base44.functions.invoke("solicitarPdfsOdoo", { rota_id: rotaSalva.id })
+        .then(({ data }) => {
+          queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
+          if (!data?.success) toast.error(data?.message || "Falha ao solicitar PDFs ao Odoo.");
+        })
+        .catch((erro) => toast.error("Não foi possível solicitar os PDFs: " + erro.message));
 
       onClose();
     } catch (e) {

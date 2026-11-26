@@ -83,20 +83,13 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
       const res = rawRes?.data || rawRes;
       if (res?.success) {
         toast.success(
-          `✅ Deu boa no envio! Solicitação aceita pelo Odoo (ID: ${res.request_id}). Aguardando recebimento dos ${listaPedidos.length} PDFs...`,
+          `Solicitação enviada ao Odoo. Os PDFs aparecerão na rota conforme forem recebidos. Referência: ${res.request_id}.`,
           { id: "puxar-pdfs", duration: 6000 }
         );
 
-        // Monitoramento ativo em tempo real: atualiza a cada 3 segundos durante 21 segundos
-        let ciclo = 0;
-        const interval = setInterval(() => {
-          ciclo++;
-          queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo"] });
-          if (ciclo >= 7) {
-            clearInterval(interval);
-          }
-        }, 3000);
+        // O recebimento continua sendo acompanhado pela assinatura da rota,
+        // sem encerrar após 21 segundos nem recarregar todo o PCP a cada PDF.
+        queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
       } else if (res?.status_odoo) {
         toast.error(
           `❌ Não deu boa com o Odoo (Status ${res.status_odoo}): O webhook do Odoo deu erro. Peça ao Guilherme para salvar a URL do Base44 no Odoo.`,
