@@ -30,6 +30,7 @@ import ValidacaoEtiquetaChapaDialog from "@/components/corte-dobra/ValidacaoEtiq
 import IniciarOpOperadoresDialog from "@/components/producao/IniciarOpOperadoresDialog";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ApontamentoOpButton from "@/components/producao/ApontamentoOpButton";
+import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import { getItens, computePercentual, statusPcpPorPercentual, buildItensJson, classGrupo } from "@/lib/pedidoOdooHelper";
 import {
   PrioridadeBadge,
@@ -436,9 +437,16 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
   const handleUploadFoto = async (file) => {
     if (!file) return;
     setUploadingFoto(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    const prodSeg = calcularProdSeg();
-    await finalizarOrdem(file_url, prodSeg, false, "");
+    try {
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
+      const prodSeg = calcularProdSeg();
+      await finalizarOrdem(file_url, prodSeg, false, "");
+    } catch (err) {
+      toast.error("Erro ao enviar foto: " + (err?.message || ""));
+    } finally {
+      setUploadingFoto(false);
+    }
     // Ivaiporã: Laser → segue para a Dobradeira 4m como próxima etapa
     if (seguirDobra) {
       try {

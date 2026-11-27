@@ -761,18 +761,37 @@ export async function processarOdooWebhookCore(req: Request, unidadeForcada?: st
       return normalizarUrlOdoo(rawUrl);
     };
 
-    const anexo1Url = resolveAnexo(1);
-    const anexo2Url = resolveAnexo(2);
-    const anexo3Url = resolveAnexo(3);
-    const anexo4Url = resolveAnexo(4);
-    const anexo5Url = resolveAnexo(5);
-    const anexo6Url = resolveAnexo(6);
-    const anexo7Url = resolveAnexo(7);
-    const anexo8Url = resolveAnexo(8);
-    const anexo9Url = resolveAnexo(9);
-    const anexo10Url = resolveAnexo(10);
+    const uploadBase64IfAny = async (rawUriOrUrl: string, nomeArquivo: string): Promise<string> => {
+      if (!rawUriOrUrl) return "";
+      if (rawUriOrUrl.startsWith("http://") || rawUriOrUrl.startsWith("https://")) {
+        return rawUriOrUrl;
+      }
+      if (isBase64(rawUriOrUrl) || rawUriOrUrl.startsWith("data:")) {
+        try {
+          const blob = base64ToBlob(rawUriOrUrl);
+          const ext = blob.type.split("/")[1] || "png";
+          const file = new File([blob], `${nomeArquivo}.${ext}`, { type: blob.type });
+          const res = await db.integrations.Core.UploadFile({ file: file as any });
+          if (res?.file_url) return res.file_url;
+        } catch (err: any) {
+          console.warn(`[odooWebhook] Falha ao converter base64 ${nomeArquivo}:`, err?.message || err);
+        }
+      }
+      return normalizarUrlOdoo(rawUriOrUrl);
+    };
+
+    const anexo1Url = await uploadBase64IfAny(resolveAnexo(1), `anexo_1_${numeroPedido || Date.now()}`);
+    const anexo2Url = await uploadBase64IfAny(resolveAnexo(2), `anexo_2_${numeroPedido || Date.now()}`);
+    const anexo3Url = await uploadBase64IfAny(resolveAnexo(3), `anexo_3_${numeroPedido || Date.now()}`);
+    const anexo4Url = await uploadBase64IfAny(resolveAnexo(4), `anexo_4_${numeroPedido || Date.now()}`);
+    const anexo5Url = await uploadBase64IfAny(resolveAnexo(5), `anexo_5_${numeroPedido || Date.now()}`);
+    const anexo6Url = await uploadBase64IfAny(resolveAnexo(6), `anexo_6_${numeroPedido || Date.now()}`);
+    const anexo7Url = await uploadBase64IfAny(resolveAnexo(7), `anexo_7_${numeroPedido || Date.now()}`);
+    const anexo8Url = await uploadBase64IfAny(resolveAnexo(8), `anexo_8_${numeroPedido || Date.now()}`);
+    const anexo9Url = await uploadBase64IfAny(resolveAnexo(9), `anexo_9_${numeroPedido || Date.now()}`);
+    const anexo10Url = await uploadBase64IfAny(resolveAnexo(10), `anexo_10_${numeroPedido || Date.now()}`);
     const rawFoto = body?.foto_pedido_url || newItems[0]?.foto_url || newItems[0]?.imagem_url || anexo1Url || "";
-    const fotoUrl = rawFoto.startsWith("data:") ? rawFoto : normalizarUrlOdoo(rawFoto);
+    const fotoUrl = await uploadBase64IfAny(rawFoto, `foto_pedido_${numeroPedido || Date.now()}`);
 
     // ── 8.1 PDF do Pedido de Venda (Recebido via Multipart ou JSON) ──
     let pdfPedidoUrl = existingRec?.pdf_pedido_url || body?.pdf_pedido_url || body?.pdf_url || "";

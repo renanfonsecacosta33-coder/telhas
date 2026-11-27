@@ -5,6 +5,7 @@ import { Truck, Camera, Eye, X, Loader2, Plus, CheckCircle2 } from "lucide-react
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import { playFinishSound } from "@/lib/sounds";
+import { comprimirImagemParaUpload } from "@/lib/compressImage";
 
 const MAX_FOTOS_TRASEIRA = 6;
 
@@ -45,7 +46,8 @@ export default function RotaTraseiraCaminhaoSlot({ rotaId, fotosJson }) {
 
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       const agora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       const novas = [...fotos, { url: file_url, nome: file.name, data: agora }];
       await persist(novas);

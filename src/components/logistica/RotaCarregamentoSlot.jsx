@@ -5,6 +5,7 @@ import { Eye, X, Camera, Film, CheckCircle2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import { playFinishSound } from "@/lib/sounds";
+import { comprimirImagemParaUpload } from "@/lib/compressImage";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_RING = {
@@ -48,7 +49,8 @@ export default function RotaCarregamentoSlot({ rotaId, dep, fotosJson, videoUrl,
     if (fotos.length >= MAX_FOTOS) { toast.error(`Máximo de ${MAX_FOTOS} fotos.`); return; }
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       const novas = [...fotos, { url: file_url, nome: file.name }];
       await persist(novas, undefined);
       toast.success(`Foto ${novas.length}/${MAX_FOTOS} — ${DEP_LABEL[dep]}`);

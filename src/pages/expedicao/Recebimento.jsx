@@ -223,11 +223,12 @@ export default function RecebimentoExpedicao() {
   };
 
   // ── Upload de arquivo por item ──────────────────────────────────────────
-  const handleItemFileUpload = async (tempId, field, file) => {
-    if (!file) return;
+  const handleItemFileUpload = async (tempId, field, rawFile) => {
+    if (!rawFile) return;
     const key = `${tempId}_${field}`;
     setUploadingItemKey(key);
     try {
+      const file = await compressImage(rawFile, 1280, 0.72);
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       updateItem(tempId, field, file_url);
       toast.success(`📸 Arquivo enviado para o item!`);
@@ -341,9 +342,10 @@ Extraia da imagem da NF-e:
   };
 
   // ── Upload foto da balança geral ──────────────────
-  const handleBalancaPhotoGeral = async (file) => {
-    if (!file) return;
+  const handleBalancaPhotoGeral = async (rawFile) => {
+    if (!rawFile) return;
     try {
+      const file = await compressImage(rawFile, 1280, 0.72);
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setHead("foto_balanca_url", file_url);
       toast.success("📸 Foto da balança geral registrada!");
@@ -351,9 +353,10 @@ Extraia da imagem da NF-e:
   };
 
   // ── Upload foto do material geral ──────────────────
-  const handleMaterialPhotoGeral = async (file) => {
-    if (!file) return;
+  const handleMaterialPhotoGeral = async (rawFile) => {
+    if (!rawFile) return;
     try {
+      const file = await compressImage(rawFile, 1280, 0.72);
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setHead("foto_material_url", file_url);
       toast.success("📸 Foto do material geral registrada!");

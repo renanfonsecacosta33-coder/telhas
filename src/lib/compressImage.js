@@ -17,6 +17,17 @@ export function criarPreviewLocalInstantaneo(file) {
   }
 }
 
+export async function otimizarFotoParaUpload(file, { maxDim = 1280, qualidade = 0.72, onPreview } = {}) {
+  if (!file) return file;
+  if (onPreview && typeof onPreview === "function" && (file instanceof File || file instanceof Blob)) {
+    try {
+      const previewUrl = URL.createObjectURL(file);
+      onPreview(previewUrl);
+    } catch {}
+  }
+  return await comprimirImagemParaUpload(file, maxDim, qualidade);
+}
+
 export async function comprimirImagemParaUpload(file, maxDim = 1280, qualidade = 0.72) {
   if (!file || !(file instanceof File || file instanceof Blob)) {
     return file;

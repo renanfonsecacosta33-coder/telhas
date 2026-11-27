@@ -20,6 +20,7 @@ import { playAlertSound, playFinishSound } from "@/lib/sounds";
 import ChatPedidoButton from "@/components/chat/ChatPedidoButton";
 import ImageLink from "@/components/ui/ImageLink";
 import UploadButton from "@/components/ui/UploadButton";
+import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 
 const PRODUTOS_COM_EPS = ["TELHA + EPS", "TELHA + EPS + MANTA", "TELHA + EPS + TELHA", "TELHA BANDEJA"];
 
@@ -418,9 +419,12 @@ export default function CorteEPS() {
 
   const handleUploadFotoEps = async (file) => {
     if (!file) return;
+    const preview = criarPreviewLocalInstantaneo(file);
+    if (preview) setFotoEpsUrl(preview);
     setUploadingFoto(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       setFotoEpsUrl(file_url);
       toast.success("Foto do EPS cortado anexada com sucesso!");
     } catch (err) {

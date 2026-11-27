@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { comprimirImagemParaUpload } from "@/lib/compressImage";
 import {
   RotateCcw, Plus, Camera, Upload, CheckCircle2, ChevronLeft,
   AlertTriangle, FileText, Package, Truck, User, Calendar,
@@ -99,7 +100,8 @@ export default function Devolucoes() {
     if (!file) return;
     try {
       setUploadingField(field);
-      const res = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const res = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       if (res?.file_url) {
         setFormDev(prev => ({ ...prev, [field]: res.file_url }));
         toast.success("Foto enviada com sucesso!");
