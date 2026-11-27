@@ -48,7 +48,6 @@ import {
   analisarCapacidadeCaminhao,
 } from "@/lib/veiculosCapacidadeHelper";
 import { baixarRomaneioPdf, imprimirRomaneioHtml } from "@/lib/romaneioCargaPdfHelper";
-import { contarFotos, TOTAL_SLOTS_FOTOS } from "@/lib/rotaDataHelper";
 
 const DEP_LABEL = { telhas: "Telhas", corte_dobra: "Corte e Dobra", expedicao: "Expedição" };
 const DEP_COLOR = {
@@ -57,15 +56,7 @@ const DEP_COLOR = {
   expedicao: "bg-purple-100 text-purple-700 border-purple-200",
 };
 
-const STATUS_ROTA = {
-  distribuido: "Distribuída",
-  carregado: "Carregada",
-  em_transito: "Em trânsito",
-  expedido: "Expedida",
-};
-
-export default function RotaEntregaCard({ rota, departamento, allowDelete = false, inicialAberto = true }) {
-  const [aberto, setAberto] = useState(inicialAberto);
+export default function RotaEntregaCard({ rota, departamento, allowDelete = false }) {
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerName, setViewerName] = useState("");
   const [replacingRota, setReplacingRota] = useState(false);
@@ -339,89 +330,6 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
 
   const totalFmt = rota.total_valor || "";
   const dataCriacao = rota.data_criacao ? format(new Date(rota.data_criacao + "T12:00:00"), "dd/MM") : "";
-  const fotosAnexadas = contarFotos(rota);
-
-  if (!aberto) {
-    return (
-      <button
-        type="button"
-        onClick={() => setAberto(true)}
-        className="w-full text-left bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4 hover:border-primary/40 transition-colors cursor-pointer"
-      >
-        <div className="h-20 w-28 shrink-0 rounded-xl overflow-hidden border border-border bg-muted flex items-center justify-center">
-          {rota.rota_imagem_url ? (
-            <img src={rota.rota_imagem_url} alt="Folha da rota" className="h-full w-full object-cover" />
-          ) : (
-            <Truck className="w-6 h-6 text-muted-foreground" />
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-bold text-base text-foreground truncate">
-              {rota.titulo || "Rota de Entrega"}
-            </h3>
-            <Badge variant="outline" className="text-[10px] py-0 font-bold border-primary/30 text-primary">
-              {STATUS_ROTA[rota.status] || "Distribuída"}
-            </Badge>
-            {resumoBarracoes.telhas > 0 && (
-              <Badge className="bg-blue-100 hover:bg-blue-100 text-blue-900 border-blue-200 text-[10px] py-0 font-bold">
-                🏠 {resumoBarracoes.telhas}
-              </Badge>
-            )}
-            {resumoBarracoes.cd > 0 && (
-              <Badge className="bg-orange-100 hover:bg-orange-100 text-orange-900 border-orange-200 text-[10px] py-0 font-bold">
-                🏗️ {resumoBarracoes.cd}
-              </Badge>
-            )}
-            {resumoBarracoes.ambos > 0 && (
-              <Badge className="bg-purple-100 hover:bg-purple-100 text-purple-900 border-purple-200 text-[10px] py-0 font-bold">
-                📦 {resumoBarracoes.ambos}
-              </Badge>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
-            {rota.entrega_date && (
-              <span className="flex items-center gap-1 font-semibold text-foreground">
-                <Calendar className="w-3 h-3 text-primary" /> {rota.entrega_date}
-              </span>
-            )}
-            {rota.embarque_date && <span>Embarque {rota.embarque_date}</span>}
-            {rota.motorista_nome && <span>👤 {rota.motorista_nome}</span>}
-            {rota.placa && <span className="font-mono">🚛 {rota.placa}</span>}
-          </div>
-
-          <div className="flex items-center gap-3 text-[11px] font-semibold text-foreground flex-wrap">
-            <span className="flex items-center gap-1">
-              <PackageCheck className="w-3 h-3 text-primary" /> {itens.length}{" "}
-              {itens.length === 1 ? "pedido" : "pedidos"}
-            </span>
-            <span className="flex items-center gap-1">
-              <Weight className="w-3 h-3 text-muted-foreground" />{" "}
-              {dadosPeso.pesoTotalKg.toLocaleString("pt-BR")} kg
-            </span>
-            <span
-              className={`flex items-center gap-1 ${
-                fotosAnexadas === 0 ? "text-amber-600" : "text-emerald-600"
-              }`}
-            >
-              <Camera className="w-3 h-3" /> {fotosAnexadas}/{TOTAL_SLOTS_FOTOS} fotos
-            </span>
-            {totalFmt && (
-              <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
-                <DollarSign className="w-3 h-3" /> {totalFmt}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
-          Abrir rota <ChevronDown className="w-4 h-4" />
-        </span>
-      </button>
-    );
-  }
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm w-full transition-all">
@@ -917,15 +825,6 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             <Trash2 className="w-3.5 h-3.5" /> Excluir Rota
           </Button>
         )}
-
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setAberto(false)}
-          className="gap-1.5 text-xs font-bold h-8 px-3 cursor-pointer"
-        >
-          <ChevronUp className="w-3.5 h-3.5" /> Recolher rota
-        </Button>
       </div>
 
       <input

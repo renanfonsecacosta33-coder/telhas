@@ -3,16 +3,15 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
-import { Truck, Plus, Package, Factory, Layers, Calendar, Camera, Maximize2 } from "lucide-react";
+import { Truck, Plus, Package, Factory, Layers, Calendar, Camera } from "lucide-react";
 import { useFilial } from "@/contexts/FilialContext";
 import NovaCargaDialog from "@/components/logistica/NovaCargaDialog";
 import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
 import ResumoDiaRotas from "@/components/logistica/ResumoDiaRotas";
 import BuscaFiltroRotas from "@/components/logistica/BuscaFiltroRotas";
-import ModoPatioRotas from "@/components/logistica/ModoPatioRotas";
 import { filtrarRotas } from "@/lib/rotaDataHelper";
 import DateNavigatorStrip from "@/components/logistica/DateNavigatorStrip";
 import CargaCard from "@/components/logistica/CargaCard";
@@ -30,7 +29,6 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("todas");
   const [somenteSemFoto, setSomenteSemFoto] = useState(false);
-  const [patioAberto, setPatioAberto] = useState(false);
   const { filialAtiva } = useFilial();
 
 
@@ -211,14 +209,6 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
           <p className="text-sm text-muted-foreground">Agrupamento de cargas e carregamento de caminhões</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            onClick={() => setPatioAberto(true)}
-            className="gap-2 border-amber-400/60 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
-            title="Ver as rotas do dia em tela cheia, para uso no pátio"
-          >
-            <Maximize2 className="w-4 h-4" /> Modo Pátio
-          </Button>
           <Button asChild variant="outline" className="gap-2 border-primary/40 text-primary hover:bg-primary/10">
             <Link to="/timeline-carregamento">
               <Camera className="w-4 h-4" /> Timeline de Carregamento (5 Etapas)
@@ -309,22 +299,11 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         busca={busca}
         statusFiltro={statusFiltro}
         somenteSemFoto={somenteSemFoto}
-        inicialAberto={false}
       />
 
         </>
       )}
 
-      <ModoPatioRotas
-        aberto={patioAberto}
-        onClose={() => setPatioAberto(false)}
-        rotas={rotasDoDia}
-        tituloDia={
-          dataSelecionadaCalendario
-            ? format(parseISO(dataSelecionadaCalendario), "dd/MM/yyyy")
-            : "Todas as datas"
-        }
-      />
       <NovaCargaDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
       <AuditSidebar open={!!selectedItem} onClose={() => setSelectedItem(null)} item={selectedItem} tipo={selectedTipo} />
     </div>

@@ -7,7 +7,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import RotaEntregaCard from "@/components/logistica/RotaEntregaCard";
+import RotasCarrossel from "@/components/logistica/RotasCarrossel";
 import { isRotaExpirada, filtrarRotas } from "@/lib/rotaDataHelper";
 
 /**
@@ -20,7 +20,6 @@ import { isRotaExpirada, filtrarRotas } from "@/lib/rotaDataHelper";
  * - title: título opcional da seção
  * - compact: se true, limita a 3 cards
  * - busca / statusFiltro / somenteSemFoto: filtros aplicados pela página
- * - inicialAberto: abre a rota já expandida (padrão) ou recolhida
  */
 export default function RotasEntregaSection({
   departamento,
@@ -33,7 +32,6 @@ export default function RotasEntregaSection({
   busca = "",
   statusFiltro = "todas",
   somenteSemFoto = false,
-  inicialAberto = true,
 }) {
   const queryClient = useQueryClient();
   const { data: rotas = [], isLoading } = useQuery({
@@ -155,17 +153,11 @@ export default function RotasEntregaSection({
           <Archive className="w-3.5 h-3.5" /> Ver Arquivo
         </Link>
       </div>
-      <div className="space-y-3">
-        {rotasFiltradas.map((r) => (
-          <RotaEntregaCard
-            key={r.id}
-            rota={r}
-            departamento={departamento}
-            allowDelete={allowDelete}
-            inicialAberto={inicialAberto}
-          />
-        ))}
-      </div>
+      <RotasCarrossel
+        rotas={rotasFiltradas}
+        departamento={departamento}
+        allowDelete={allowDelete}
+      />
     </div>
   );
 }
