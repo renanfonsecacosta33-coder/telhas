@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import ImageLink from "@/components/ui/ImageLink";
 import { isPdfUrl } from "@/lib/imagemBase64";
 import { useRegrasProducao } from "@/lib/regrasProducao";
+import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 
 export default function ValidacaoEtiquetaChapaDialog({ open, onClose, ordem, onAprovado, isGestor = false }) {
   const regras = useRegrasProducao();
@@ -54,10 +55,13 @@ export default function ValidacaoEtiquetaChapaDialog({ open, onClose, ordem, onA
 
   const handleUpload = async (file) => {
     if (!file) return;
+    const preview = criarPreviewLocalInstantaneo(file);
+    if (preview) setFotoUrl(preview);
     setUploading(true);
     setResultado(null);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       setFotoUrl(file_url);
       setUploading(false);
       await validarEtiqueta(file_url);

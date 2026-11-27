@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Camera, Truck, Loader2, CheckCircle2, X, AlertCircle } from "lucide-react";
 import UploadButton from "@/components/ui/UploadButton";
+import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 
 export default function CarregamentoDialog({ open, onClose, item, tipo, motoristaNome, cargaId, onConcluido }) {
   const [fotoUrl, setFotoUrl] = useState("");
@@ -27,14 +28,18 @@ export default function CarregamentoDialog({ open, onClose, item, tipo, motorist
 
   const handleUpload = async (file) => {
     if (!file) return;
+    const preview = criarPreviewLocalInstantaneo(file);
+    if (preview) setFotoUrl(preview);
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       setFotoUrl(file_url);
     } catch (e) {
       alert("Erro ao enviar foto: " + (e.message || e));
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   };
 
   const registrarMutation = useMutation({

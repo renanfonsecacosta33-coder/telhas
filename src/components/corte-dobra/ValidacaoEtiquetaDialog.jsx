@@ -9,6 +9,7 @@ import ImageLink from "@/components/ui/ImageLink";
 import { useTolerancias } from "@/hooks/useTolerancias";
 import { validarBobina } from "@/lib/bobinaValidation";
 import { useRegrasProducao } from "@/lib/regrasProducao";
+import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 
 export default function ValidacaoEtiquetaDialog({ open, onClose, ordem, onAprovado }) {
   const regras = useRegrasProducao();
@@ -48,10 +49,13 @@ export default function ValidacaoEtiquetaDialog({ open, onClose, ordem, onAprova
 
   const handleUpload = async (file) => {
     if (!file) return;
+    const preview = criarPreviewLocalInstantaneo(file);
+    if (preview) setFotoUrl(preview);
     setUploading(true);
     setResultado(null);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       setFotoUrl(file_url);
       setUploading(false);
       await validarEtiqueta(file_url);

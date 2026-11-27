@@ -17,6 +17,7 @@ import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { registrarAuditoria } from "@/lib/auditHelper";
+import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 
 export const ETAPAS_CARREGAMENTO = [
   { id: "1_veiculo_vazio", label: "1. Veículo Vazio / Forração", desc: "Vistoria do assoalho limpo, sem farpas e forração de proteção" },
@@ -62,9 +63,12 @@ export default function RegistrarEtapaCarregamentoModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const preview = criarPreviewLocalInstantaneo(file);
+    if (preview) setFotoUrl(preview);
     setUploading(true);
     try {
-      const res = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const res = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       if (res?.file_url) {
         setFotoUrl(res.file_url);
         toast.success("Foto carregada com sucesso!");

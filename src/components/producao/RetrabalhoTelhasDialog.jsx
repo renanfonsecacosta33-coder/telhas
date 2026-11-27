@@ -9,6 +9,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import ImageLink from "@/components/ui/ImageLink";
+import { comprimirImagemParaUpload, criarPreviewLocalInstantaneo } from "@/lib/compressImage";
 
 const ETAPA_CORES = [
   { border: "border-l-red-500", bg: "bg-red-50/40", badge: "bg-red-500", text: "text-red-700", label: "Etapa 1" },
@@ -56,9 +57,15 @@ export default function RetrabalhoTelhasDialog({ open, onClose, pedidoOrigem, on
 
   const handleFile = async (file, slot) => {
     if (!file) return;
+    const preview = criarPreviewLocalInstantaneo(file);
+    if (preview) {
+      if (slot === 1) setFoto1(preview);
+      else setFoto2(preview);
+    }
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const fileOtimizado = await comprimirImagemParaUpload(file, 1280, 0.72);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: fileOtimizado });
       if (slot === 1) setFoto1(file_url);
       else setFoto2(file_url);
     } catch (err) {
