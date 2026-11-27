@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
-import { Truck, Plus, Package, Search, X, Loader2, Factory, Layers, CheckCircle, Calendar, Filter, ChevronDown, ChevronRight, PackageCheck, Camera } from "lucide-react";
+import { Truck, Plus, Package, Factory, Layers, Calendar, Camera } from "lucide-react";
 import { useFilial } from "@/contexts/FilialContext";
 import NovaCargaDialog from "@/components/logistica/NovaCargaDialog";
 import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
@@ -14,23 +14,17 @@ import DateNavigatorStrip from "@/components/logistica/DateNavigatorStrip";
 import CargaCard from "@/components/logistica/CargaCard";
 import AuditSidebar from "@/components/logistica/AuditSidebar";
 import CalendarioEntregas from "@/components/logistica/CalendarioEntregas";
-import { useInvestigacaoBarracoes } from "@/lib/investigacaoBarracoesHelper";
 
 export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const isDespacho = mode === "despacho";
   const [user, setUser] = useState(null);
-  const [busca, setBusca] = useState("");
   const [dialogCarga, setDialogCarga] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedTipo, setSelectedTipo] = useState(null);
   const [tab, setTab] = useState(defaultTab);
-  const [filtroData, setFiltroData] = useState("");
   const [dataSelecionadaCalendario, setDataSelecionadaCalendario] = useState(null);
-  const [filtroStatus, setFiltroStatus] = useState("todos");
-  const [mostrarEntregues, setMostrarEntregues] = useState(false);
   const { filialAtiva } = useFilial();
-  const { getInfoPedido } = useInvestigacaoBarracoes(filialAtiva);
-  const queryClient = useQueryClient();
+
 
   useEffect(() => {
     if (defaultTab) {
@@ -43,7 +37,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   }, []);
 
   // Fetch orders from Telhas — pendente, em_producao, finalizado (not cancelado)
-  const { data: pedidosTelhas = [], isLoading: loadingTelhas } = useQuery({
+  const { data: pedidosTelhas = [] } = useQuery({
     queryKey: ["logistica-telhas", filialAtiva],
     queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
     placeholderData: (prev) => prev,
@@ -53,7 +47,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   });
 
   // Fetch orders from CD — pendente, em_producao, finalizado (not cancelado)
-  const { data: ordensMaq = [], isLoading: loadingMaq } = useQuery({
+  const { data: ordensMaq = [] } = useQuery({
     queryKey: ["logistica-cd-maq", filialAtiva],
     queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: { $in: ["pendente", "aguardando_corte", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
     placeholderData: (prev) => prev,
@@ -62,7 +56,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     refetchOnWindowFocus: false,
   });
 
-  const { data: ordensDesb = [], isLoading: loadingDesb } = useQuery({
+  const { data: ordensDesb = [] } = useQuery({
     queryKey: ["logistica-cd-desb", filialAtiva],
     queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
     placeholderData: (prev) => prev,
@@ -72,7 +66,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   });
 
   // Fetch all cargas
-  const { data: cargas = [], isLoading: loadingCargas } = useQuery({
+  const { data: cargas = [] } = useQuery({
     queryKey: ["cargas", filialAtiva],
     queryFn: () => base44.entities.Carga.filter({ unidade: filialAtiva }, "-data_criacao", 100),
     placeholderData: (prev) => prev,
@@ -131,95 +125,11 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
       : tab === "telhas"
       ? allItens.filter(i => i._setor === "Telhas")
       : allItens.filter(i => i._setor === "Corte e Dobra");
-    const dataFiltroEfetiva = filtroData || dataSelecionadaCalendario;
-    if (dataFiltroEfetiva) {
-      items = items.filter(i => (i.data_finalizacao || i.data || "") === dataFiltroEfetiva);
+    if (dataSelecionadaCalendario) {
+      items = items.filter(i => (i.data_finalizacao || i.data || "") === dataSelecionadaCalendario);
     }
     return items;
-  }, [allItens, tab, filtroData, dataSelecionadaCalendario]);
-
-  // Group by numero_pedido
-  const pedidosAgrupados = useMemo(() => {
-    const grupos = {};
-    itensFiltradosTab.forEach(item => {
-      const key = item.numero_pedido || `SEM_PEDIDO_${item.id}`;
-      if (!grupos[key]) {
-        const info = getInfoPedido(item.numero_pedido, "", "", item.numero_odoo, item.cliente, item.vendedor);
-        const numOdoo = item.numero_odoo || info?.numero_odoo || "";
-        grupos[key] = {
-          numero_pedido: item.numero_pedido || "—",
-          numero_odoo: numOdoo,
-          cliente: item.cliente || info?.cliente || "—",
-          vendedor: item.vendedor || info?.vendedor || "",
-          itens: [],
-        };
-      }
-      grupos[key].itens.push(item);
-    });
-
-    // Compute status for each group
-    return Object.values(grupos).map(g => {
-      if (!g.numero_odoo) {
-        const itemComOdoo = g.itens.find(i => i.numero_odoo || i.odoo_id);
-        if (itemComOdoo) {
-          g.numero_odoo = itemComOdoo.numero_odoo || itemComOdoo.odoo_id;
-        } else {
-          const info = getInfoPedido(g.numero_pedido, "", "", "", g.cliente, g.vendedor);
-          if (info?.numero_odoo) g.numero_odoo = info.numero_odoo;
-        }
-      }
-
-      const total = g.itens.length;
-      const carregados = g.itens.filter(i => i.status_expedicao === "carregado" || i.status_expedicao === "em_transito" || i.status_expedicao === "expedido").length;
-      const expedidos = g.itens.filter(i => i.status_expedicao === "em_transito" || i.status_expedicao === "expedido").length;
-
-      let statusCarga = "em_producao";
-
-      // All items delivered = entregue
-      const todosExpedidos = g.itens.every(i => i.status_expedicao === "expedido");
-      if (todosExpedidos && total > 0) statusCarga = "entregue";
-
-      // All items finalized and not yet loaded = pronto_expedicao
-      const todosFinalizados = g.itens.every(i => i.status === "finalizado");
-      const todosNoPatio = g.itens.every(i => !i.status_expedicao || i.status_expedicao === "aguardando");
-      if (todosFinalizados && todosNoPatio && total > 0) statusCarga = "pronto_expedicao";
-      else if (todosFinalizados && expedidos === total && total > 0) statusCarga = "pronto_expedicao";
-      else if (todosFinalizados && carregados > 0) statusCarga = "pronto_parcial";
-
-      // If some items are still in production
-      const temEmProducao = g.itens.some(i => i.status === "em_producao");
-      if (!todosFinalizados && temEmProducao) statusCarga = "em_producao";
-
-      // If all pending (waiting for operator to start)
-      const todosPendentes = g.itens.every(i => i.status === "pendente" || i.status === "aguardando_corte");
-      if (todosPendentes && total > 0) statusCarga = "aguardando_inicio";
-
-      return { ...g, total, carregados, expedidos, statusCarga };
-    }).sort((a, b) => {
-      const order = { pronto_expedicao: 0, pronto_parcial: 1, em_producao: 2, aguardando_inicio: 3, entregue: 4 };
-      return (order[a.statusCarga] ?? 3) - (order[b.statusCarga] ?? 3);
-    });
-  }, [itensFiltradosTab, getInfoPedido]);
-
-  // Filter by search + status (aceita numero_pedido, numero_odoo, cliente ou vendedor)
-  const gruposFiltrados = useMemo(() => {
-    let result = pedidosAgrupados;
-    if (filtroStatus !== "todos") {
-      result = result.filter(g => g.statusCarga === filtroStatus);
-    }
-    if (!busca.trim()) return result;
-    const q = busca.toLowerCase().trim();
-    return result.filter(g =>
-      (g.numero_pedido || "").toLowerCase().includes(q) ||
-      (g.numero_odoo || "").toLowerCase().includes(q) ||
-      (g.cliente || "").toLowerCase().includes(q) ||
-      (g.vendedor || "").toLowerCase().includes(q)
-    );
-  }, [pedidosAgrupados, busca, filtroStatus]);
-
-  // Split: active (not all delivered) vs delivered
-  const gruposAtivos = useMemo(() => gruposFiltrados.filter(g => g.statusCarga !== "entregue"), [gruposFiltrados]);
-  const gruposEntregues = useMemo(() => gruposFiltrados.filter(g => g.statusCarga === "entregue"), [gruposFiltrados]);
+  }, [allItens, tab, dataSelecionadaCalendario]);
 
   // Available items (not yet linked to a carga)
   const pedidosDisponiveis = useMemo(() => {
@@ -250,15 +160,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
       }
     });
   }, [cargas, tab]);
-  const isLoading = loadingTelhas || loadingMaq || loadingDesb || loadingCargas;
 
-  const statusConfig = {
-    aguardando_inicio: { label: "⏳ Aguardando Início", cor: "bg-zinc-100 text-zinc-600 border-zinc-200" },
-    em_producao: { label: "🔴 Em Produção", cor: "bg-red-100 text-red-700 border-red-200" },
-    pronto_parcial: { label: "🟡 Pronto Parcial", cor: "bg-amber-100 text-amber-700 border-amber-200" },
-    pronto_expedicao: { label: "🟢 Pronto para Expedição", cor: "bg-green-100 text-green-700 border-green-200" },
-    entregue: { label: "✅ Entregue", cor: "bg-blue-100 text-blue-700 border-blue-200" },
-  };
 
   const handleSelectItem = (item, tipo) => {
     // For CargaCard linked items, we need to fetch the full item
@@ -273,52 +175,6 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     }
     setSelectedItem(item);
     setSelectedTipo(tipo || item._tipo);
-  };
-
-  const renderGrupoCard = (g) => {
-    const sc = statusConfig[g.statusCarga];
-    const telhasCount = g.itens.filter(i => i._setor === "Telhas").length;
-    const cdCount = g.itens.filter(i => i._setor === "Corte e Dobra").length;
-    return (
-      <button key={g.numero_pedido} onClick={() => { if (g.itens[0]) handleSelectItem(g.itens[0], g.itens[0]._tipo); }}
-        className="text-left bg-card border border-border rounded-xl p-4 hover:border-primary/50 hover:shadow transition-all">
-        <div className="flex items-center justify-between mb-2">
-          <div className="min-w-0 pr-2">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="font-bold text-sm">{g.numero_pedido}</p>
-              {g.numero_odoo && String(g.numero_odoo).toUpperCase() !== "NT" && (
-                <Badge className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold">
-                  Odoo: #{g.numero_odoo}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground truncate">{g.cliente}</p>
-            {g.vendedor && (
-              <p className="text-[10px] text-muted-foreground truncate">Vend: {g.vendedor}</p>
-            )}
-          </div>
-          <Badge className={`text-xs ${sc.cor} shrink-0`}>{sc.label}</Badge>
-        </div>
-        <div className="space-y-1.5">
-          {telhasCount > 0 && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1 text-muted-foreground"><Factory className="w-3 h-3" /> Telhas</span>
-              <span className="font-semibold">{g.itens.filter(i => i._setor === "Telhas" && (i.status_expedicao === "em_transito" || i.status_expedicao === "expedido")).length}/{telhasCount} ✓</span>
-            </div>
-          )}
-          {cdCount > 0 && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1 text-muted-foreground"><Layers className="w-3 h-3" /> Corte e Dobra</span>
-              <span className="font-semibold">{g.itens.filter(i => i._setor === "Corte e Dobra" && (i.status_expedicao === "em_transito" || i.status_expedicao === "expedido")).length}/{cdCount} ✓</span>
-            </div>
-          )}
-        </div>
-        <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${g.total > 0 ? (g.expedidos / g.total) * 100 : 0}%` }} />
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">{g.expedidos}/{g.total} OPs expedidas</p>
-      </button>
-    );
   };
 
   return (
@@ -379,19 +235,7 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
       ) : (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-            <Package className="w-3.5 h-3.5" /> Pedidos Agrupados
-          </div>
-          <p className="text-2xl font-bold">{pedidosAgrupados.length}</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-            <CheckCircle className="w-3.5 h-3.5 text-green-500" /> Prontos p/ Expedição
-          </div>
-          <p className="text-2xl font-bold text-green-600">{pedidosAgrupados.filter(g => g.statusCarga === "pronto_expedicao").length}</p>
-        </div>
+          <div className="grid grid-cols-2 gap-3">
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
             <Truck className="w-3.5 h-3.5 text-blue-500" /> Cargas Ativas
@@ -438,104 +282,6 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         onLimparFiltroData={() => setDataSelecionadaCalendario(null)}
       />
 
-      {/* Pedidos agrupados */}
-      <div className="space-y-3">
-        <div className="space-y-3">
-          <h2 className="text-lg font-bold">Pedidos Agrupados por Número</h2>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Filtro por data */}
-            <div className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-input bg-transparent">
-              <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-              <input
-                type="date"
-                value={filtroData}
-                onChange={e => setFiltroData(e.target.value)}
-                className="text-sm bg-transparent outline-none min-w-[140px]"
-              />
-              {filtroData && (
-                <button onClick={() => setFiltroData("")} className="text-muted-foreground hover:text-foreground">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-            {/* Filtro por status */}
-            <div className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-input bg-transparent">
-              <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-              <select
-                value={filtroStatus}
-                onChange={e => setFiltroStatus(e.target.value)}
-                className="text-sm bg-transparent outline-none cursor-pointer"
-              >
-                <option value="todos">Todos os status</option>
-                <option value="pronto_expedicao">Pronto p/ Expedição</option>
-                <option value="pronto_parcial">Pronto Parcial</option>
-                <option value="em_producao">Em Produção</option>
-                <option value="aguardando_inicio">Aguardando Início</option>
-                <option value="entregue">Entregue</option>
-              </select>
-            </div>
-            {/* Busca */}
-            <div className="relative ml-auto">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={busca}
-                onChange={e => setBusca(e.target.value)}
-                placeholder="Buscar por pedido, nº Odoo, cliente ou vendedor..."
-                className="h-9 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-72"
-              />
-              {busca && (
-                <button onClick={() => setBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" /></div>
-        ) : gruposAtivos.length === 0 && gruposEntregues.length === 0 ? (
-          <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground">
-            <Package className="w-10 h-10 mx-auto mb-2 text-muted-foreground/20" />
-            Nenhum pedido finalizado encontrado
-          </div>
-        ) : (
-          <>
-            {gruposAtivos.length > 0 && (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {gruposAtivos.map(renderGrupoCard)}
-              </div>
-            )}
-            {gruposAtivos.length === 0 && gruposEntregues.length > 0 && (
-              <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground">
-                <Package className="w-10 h-10 mx-auto mb-2 text-muted-foreground/20" />
-                Nenhum pedido ativo encontrado
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Pedidos Entregues — seção separada e recolhível */}
-        {gruposEntregues.length > 0 && (
-          <div className="space-y-3 mt-6">
-            <button
-              onClick={() => setMostrarEntregues(!mostrarEntregues)}
-              className="flex items-center gap-2 w-full text-left group"
-            >
-              {mostrarEntregues ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
-              <PackageCheck className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-bold">Pedidos Entregues</h2>
-              <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">{gruposEntregues.length}</Badge>
-            </button>
-            {mostrarEntregues && (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {gruposEntregues.map(renderGrupoCard)}
-              </div>
-            )}
-          </div>
-        )}
-        </div>
         </>
       )}
 
