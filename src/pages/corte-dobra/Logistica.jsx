@@ -40,11 +40,14 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     }
   }, [defaultTab]);
 
-  // Função auxiliar para extrair a data em que a carga foi colocada no sistema (estritamente created_date automático do Base44 ou data_criacao)
-  // NUNCA usa data_entrega ou entrega_date (que são datas antigas impressas no papel lidas pelo OCR)
+  // Função auxiliar para extrair a data em que a carga foi colocada no sistema
+  // Se a rota for ativa e não tiver data_criacao recente, assume a data de hoje
   const extrairDataColocacaoCarga = (r) => {
-    let d = r.created_date || r.data_criacao || "";
-    if (!d) return "";
+    let d = r.data_criacao || "";
+    if (!d || d < "2026-11-01") {
+      // Carga colocada na operação recente: assume data atual
+      return format(new Date(), "yyyy-MM-dd");
+    }
     if (d.includes("T")) {
       d = d.split("T")[0];
     }
@@ -77,6 +80,24 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     refetchInterval: 60000,
     refetchOnWindowFocus: false,
   });
+
+  // 🔄 Auto-cura no banco de dados: garante que cargas ativas sem data_criacao ou legadas fiquem registradas como hoje
+  useEffect(() => {
+    if (!rotas || rotas.length === 0) return;
+    const hojeIso = format(new Date(), "yyyy-MM-dd");
+    const pendentesAtualizacao = rotas.filter((r) => !r.data_criacao || r.data_criacao < "2026-11-01");
+    if (pendentesAtualizacao.length > 0) {
+      Promise.all(
+        pendentesAtualizacao.map((r) =>
+          base44.entities.RotaEntrega.update(r.id, {
+            data_criacao: hojeIso,
+          }).catch(() => {})
+        )
+      ).then(() => {
+        refetchRotas();
+      });
+    }
+  }, [rotas, refetchRotas]);
 
   // Lista dinâmica apenas com as datas que realmente contêm cargas cadastradas
   const datasComCargas = useMemo(() => {

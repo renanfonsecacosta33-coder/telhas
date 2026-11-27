@@ -242,6 +242,7 @@ export default function RotaEntregaCard({
         itens_json: JSON.stringify(parsed.itens || []),
         motorista_nome: parsed.motorista_nome || rota.motorista_nome,
         placa: (parsed.placa || rota.placa || "").toUpperCase(),
+        data_criacao: format(new Date(), "yyyy-MM-dd"),
       });
       queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
       toast.success("Rota atualizada! IA releu todos os dados.");
