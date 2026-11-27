@@ -32,13 +32,31 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const [tab, setTab] = useState(defaultTab);
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("todas");
-  const [dataSelecionada, setDataSelecionada] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [dataSelecionada, setDataSelecionada] = useState("todas");
 
   useEffect(() => {
     if (defaultTab) {
       setTab(defaultTab);
     }
   }, [defaultTab]);
+
+  // Função auxiliar para extrair a data em que a carga foi colocada (data_criacao / created_date)
+  const extrairDataColocacaoCarga = (r) => {
+    let d = r.data_criacao || r.created_date || r.data_entrega || r.entrega_date || "";
+    if (!d) return "";
+    if (d.includes("T")) {
+      d = d.split("T")[0];
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
+      const parts = d.split("/");
+      d = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    } else if (/^\d{2}\/\d{2}$/.test(d)) {
+      const parts = d.split("/");
+      const ano = new Date().getFullYear();
+      d = `${ano}-${parts[1]}-${parts[0]}`;
+    }
+    return d;
+  };
 
   // Carrega apenas as Rotas de Entrega da filial (100% focado em rotas)
   const {
@@ -59,66 +77,54 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     refetchOnWindowFocus: false,
   });
 
-  // Mapa de contagem de rotas por data
-  const rotasPorDataMap = useMemo(() => {
-    const map = {};
+  // Lista dinâmica apenas com as datas que realmente contêm cargas cadastradas
+  const datasComCargas = useMemo(() => {
+    const mapa = {};
     rotas.forEach((r) => {
-      // Normaliza a data da rota (pode vir em entrega_date, data_entrega ou data_criacao)
-      let dStr = r.data_entrega || r.entrega_date || r.data_criacao || "";
-      if (dStr) {
-        if (/^\d{2}\/\d{2}(\/\d{4})?$/.test(dStr)) {
-          // Converte formato DD/MM ou DD/MM/YYYY para YYYY-MM-DD
-          const parts = dStr.split("/");
-          const ano = parts[2] || new Date().getFullYear();
-          dStr = `${ano}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
-        } else if (dStr.includes("T")) {
-          dStr = dStr.split("T")[0];
-        }
-        map[dStr] = (map[dStr] || 0) + 1;
+      const dIso = extrairDataColocacaoCarga(r);
+      if (dIso) {
+        mapa[dIso] = (mapa[dIso] || 0) + 1;
       }
     });
-    return map;
+
+    return Object.entries(mapa)
+      .sort((a, b) => b[0].localeCompare(a[0])) // Ordena das mais recentes para as mais antigas
+      .map(([dataIso, qtd]) => {
+        let rotulo = dataIso;
+        let rotuloCurto = dataIso;
+        try {
+          const dt = parseISO(dataIso);
+          if (!isNaN(dt)) {
+            const diaSemana = format(dt, "EEE", { locale: ptBR }).replace(".", "");
+            const diaMes = format(dt, "dd/MMM", { locale: ptBR });
+            if (isToday(dt)) {
+              rotulo = `Hoje (${diaMes})`;
+              rotuloCurto = "Hoje";
+            } else if (isTomorrow(dt)) {
+              rotulo = `Amanhã (${diaMes})`;
+              rotuloCurto = "Amanhã";
+            } else {
+              rotulo = `${diaSemana}, ${diaMes}`;
+              rotuloCurto = diaMes;
+            }
+          }
+        } catch {}
+
+        return {
+          dataIso,
+          rotulo,
+          rotuloCurto,
+          qtd,
+        };
+      });
   }, [rotas]);
 
-  // Dias rápidos para a barra horizontal do topo: Ontem, Hoje, +5 dias futuros
-  const diasNavegacao = useMemo(() => {
-    const hoje = new Date();
-    const lista = [];
-    for (let offset = -1; offset <= 5; offset++) {
-      const data = addDays(hoje, offset);
-      const dataIso = format(data, "yyyy-MM-dd");
-      const diaSemana = format(data, "EEE", { locale: ptBR }).replace(".", "");
-      const diaMes = format(data, "dd/MMM", { locale: ptBR });
-
-      let rotulo = isToday(data)
-        ? "Hoje"
-        : isTomorrow(data)
-        ? "Amanhã"
-        : `${diaSemana}, ${diaMes}`;
-
-      lista.push({
-        dataIso,
-        rotulo,
-        diaMes,
-        qtd: rotasPorDataMap[dataIso] || 0,
-      });
-    }
-    return lista;
-  }, [rotasPorDataMap]);
-
-  // Filtra as rotas conforme a data selecionada, setor ativo e busca
+  // Filtra as rotas conforme a data selecionada (data de colocação), setor ativo e busca
   const rotasFiltradas = useMemo(() => {
     return rotas.filter((r) => {
-      // 1. Filtro por data (se houver uma data selecionada específica)
+      // 1. Filtro por data de colocação da carga
       if (dataSelecionada && dataSelecionada !== "todas") {
-        let rData = r.data_entrega || r.entrega_date || r.data_criacao || "";
-        if (/^\d{2}\/\d{2}/.test(rData)) {
-          const parts = rData.split("/");
-          const ano = parts[2] || new Date().getFullYear();
-          rData = `${ano}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
-        } else if (rData.includes("T")) {
-          rData = rData.split("T")[0];
-        }
+        const rData = extrairDataColocacaoCarga(r);
         if (rData && rData !== dataSelecionada) {
           return false;
         }
@@ -248,71 +254,51 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         <CalendarioEntregas filial={filialAtiva} />
       ) : (
         <>
-          {/* BARRA HORIZONTAL DE DIAS (Separação de Rotas por Dia com Badges) */}
-          <div className="bg-card p-3 rounded-2xl border border-border shadow-xs space-y-3">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
+          {/* BARRA DE CONTROLE COMPACTA: Seletor do Dia da Expedição posicionado ao lado da Busca */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border shadow-xs">
+            {/* Lado Esquerdo: Identificação e Total de Cargas */}
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <CalendarIcon className="w-4 h-4 text-primary" /> Selecione o Dia de Expedição:
+                <Truck className="w-4 h-4 text-primary" /> Cargas da Filial:
               </span>
+              <Badge variant="secondary" className="font-bold text-xs">
+                {rotasFiltradas.length} de {rotas.length} {rotas.length === 1 ? "carga" : "cargas"}
+              </Badge>
+            </div>
+
+            {/* Lado Direito: Seletor Compacto do Dia da Expedição + Busca Rápida */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {/* Seletor Compacto de Data (Agrupado pela Data que a Carga foi Colocada) */}
+              <div className="flex items-center gap-2 bg-background border border-border rounded-xl px-3 py-1.5 shadow-2xs">
+                <CalendarIcon className="w-4 h-4 text-primary shrink-0" />
+                <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">
+                  Dia da Expedição:
+                </span>
+                <select
+                  value={dataSelecionada}
+                  onChange={(e) => setDataSelecionada(e.target.value)}
+                  className="text-xs font-black bg-transparent border-none text-foreground focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="todas">Todas as Datas ({rotas.length})</option>
+                  {datasComCargas.map((d) => (
+                    <option key={d.dataIso} value={d.dataIso}>
+                      {d.rotulo} ({d.qtd} {d.qtd === 1 ? "carga" : "cargas"})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               {/* Busca Rápida por Motorista, Placa, Cidade ou Pedido */}
-              <div className="relative w-full sm:w-72">
+              <div className="relative w-full sm:w-60">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
                 <input
                   type="text"
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   placeholder="Buscar carga, cidade, placa..."
-                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
-            </div>
-
-            {/* Pílulas de Dias */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-              <button
-                type="button"
-                onClick={() => setDataSelecionada("todas")}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
-                  dataSelecionada === "todas"
-                    ? "bg-primary text-primary-foreground border-primary shadow-xs font-black"
-                    : "bg-background hover:bg-muted/50 border-border text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <span>Todas as Datas</span>
-                <Badge variant="secondary" className="text-[10px] h-4.5 px-1 font-bold">
-                  {rotas.length}
-                </Badge>
-              </button>
-
-              {diasNavegacao.map((d) => {
-                const isSelected = dataSelecionada === d.dataIso;
-                return (
-                  <button
-                    key={d.dataIso}
-                    type="button"
-                    onClick={() => setDataSelecionada(d.dataIso)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shrink-0 cursor-pointer flex items-center gap-2 ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm scale-[1.02] font-black"
-                        : "bg-background hover:bg-muted/50 border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <span>{d.rotulo}</span>
-                    <Badge
-                      className={`text-[10px] h-4.5 px-1.5 font-black ${
-                        isSelected
-                          ? "bg-white text-primary hover:bg-white"
-                          : d.qtd > 0
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {d.qtd} {d.qtd === 1 ? "carga" : "cargas"}
-                    </Badge>
-                  </button>
-                );
-              })}
             </div>
           </div>
 

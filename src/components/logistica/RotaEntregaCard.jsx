@@ -34,8 +34,16 @@ import {
   Clock,
   Upload,
   Zap,
-  Check
+  Check,
+  MoreHorizontal
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
 import RotaCarregamentoSlot from "@/components/logistica/RotaCarregamentoSlot";
@@ -466,22 +474,20 @@ export default function RotaEntregaCard({
           </div>
         </div>
 
-        {/* Ações do Topo: Gerar PDF, Editar e Quantidade de Pedidos */}
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          {/* Botão: Solicitar PDFs ao Odoo ERP */}
+        {/* Ações do Topo: Imprimir Romaneio em Destaque, Status de PDFs e Menu de Ações (...) */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {/* Botão Oficial Primário: Imprimir Romaneio em PDF */}
           <Button
             size="sm"
-            variant="outline"
-            onClick={handleSolicitarPdfsOdoo}
-            disabled={solicitandoPdfs}
-            className="gap-1.5 text-xs font-semibold h-9 px-3 border-blue-300 dark:border-blue-700 bg-blue-50/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/30 cursor-pointer shadow-2xs"
-            title="Solicitar envio dos PDFs de venda ao Webhook do Odoo ERP"
+            onClick={() => imprimirRomaneioHtml(rota, { filialAtiva: rota.unidade, infoPedidosMap })}
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-3.5 shadow-sm cursor-pointer"
+            title="Abrir folha oficial do Romaneio/Manifesto de Carga para impressão ou salvar em PDF"
           >
-            {solicitandoPdfs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-blue-600" />}
-            <span>Puxar PDFs do Odoo</span>
+            <Printer className="w-4 h-4" />
+            <span>Imprimir Romaneio (PDF)</span>
           </Button>
 
-          {/* Indicador de Status: Se deu boa ou não na busca de PDFs */}
+          {/* Indicador de Status: Deu boa ou não na busca de PDFs */}
           {totalPdfsProntos === itens.length && itens.length > 0 ? (
             <Badge className="bg-emerald-100 hover:bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 font-bold text-xs gap-1.5 py-1 px-2.5 h-9 flex items-center shadow-2xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -493,48 +499,68 @@ export default function RotaEntregaCard({
               <span>PDFs: {totalPdfsProntos}/{itens.length}</span>
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-slate-500 border-slate-300 dark:border-slate-700 font-medium text-xs gap-1.5 py-1 px-2.5 h-9 flex items-center" title="Nenhum PDF recebido do Odoo para esta rota ainda. Clique em 'Puxar PDFs do Odoo' para solicitar.">
+            <Badge variant="outline" className="text-slate-500 border-slate-300 dark:border-slate-700 font-medium text-xs gap-1.5 py-1 px-2.5 h-9 flex items-center" title="Nenhum PDF recebido do Odoo para esta rota ainda.">
               <Clock className="w-3.5 h-3.5 text-slate-400" />
               <span>0/{itens.length} PDFs</span>
             </Badge>
           )}
 
-          {/* Botão Oficial: Imprimir Romaneio em PDF */}
-          <Button
-            size="sm"
-            onClick={() => imprimirRomaneioHtml(rota, { filialAtiva: rota.unidade, infoPedidosMap })}
-            className="gap-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs h-9 px-3.5 shadow-sm cursor-pointer"
-            title="Abrir folha oficial do Romaneio/Manifesto de Carga para impressão ou salvar em PDF"
-          >
-            <Printer className="w-4 h-4" />
-            Imprimir Romaneio (PDF)
-          </Button>
-
-          {/* Botão: Baixar PDF nativo */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => baixarRomaneioPdf(rota, { filialAtiva: rota.unidade, infoPedidosMap })}
-            className="gap-1.5 text-xs font-semibold h-9 px-3 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-            title="Baixar arquivo PDF nativo do Romaneio de Carga"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Baixar PDF
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setEditDialogOpen(true)}
-            className="h-9 w-9 p-0 rounded-lg text-primary hover:bg-primary/10 border-primary/20"
-            title="Editar dados da rota"
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
-
-          <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5">
+          <Badge className="bg-slate-800 dark:bg-slate-700 text-white font-bold text-xs px-2.5 py-1 h-9 flex items-center">
             {itens.length} {itens.length === 1 ? "pedido" : "pedidos"}
           </Badge>
+
+          {/* Menu de Três Pontinhos (...) com as Demais Opções */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 w-9 p-0 border-border bg-card hover:bg-muted text-foreground cursor-pointer"
+                title="Mais ações da carga..."
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 p-1.5 space-y-1">
+              <DropdownMenuItem
+                onClick={handleSolicitarPdfsOdoo}
+                disabled={solicitandoPdfs}
+                className="gap-2 cursor-pointer text-xs font-semibold"
+              >
+                {solicitandoPdfs ? <Loader2 className="w-4 h-4 animate-spin text-blue-600" /> : <RefreshCw className="w-4 h-4 text-blue-600" />}
+                <span>Puxar PDFs do Odoo</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={() => baixarRomaneioPdf(rota, { filialAtiva: rota.unidade, infoPedidosMap })}
+                className="gap-2 cursor-pointer text-xs font-semibold"
+              >
+                <Download className="w-4 h-4 text-emerald-600" />
+                <span>Baixar Romaneio em PDF</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={() => setEditDialogOpen(true)}
+                className="gap-2 cursor-pointer text-xs font-semibold"
+              >
+                <Pencil className="w-4 h-4 text-primary" />
+                <span>Editar Dados da Carga</span>
+              </DropdownMenuItem>
+
+              {allowDelete && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleDelete}
+                    className="gap-2 cursor-pointer text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                    <span>Excluir Carga</span>
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
