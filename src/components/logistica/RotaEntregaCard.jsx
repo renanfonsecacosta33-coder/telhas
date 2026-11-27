@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
+import GaleriaFotosRota from "@/components/logistica/GaleriaFotosRota";
 import {
   Truck,
   Eye,
@@ -31,7 +32,9 @@ import {
   AlertCircle,
   ExternalLink,
   Clock,
-  Upload
+  Upload,
+  Zap,
+  Check
 } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
@@ -57,7 +60,13 @@ const DEP_COLOR = {
   expedicao: "bg-purple-100 text-purple-700 border-purple-200",
 };
 
-export default function RotaEntregaCard({ rota, departamento, allowDelete = false }) {
+export default function RotaEntregaCard({
+  rota,
+  departamento,
+  allowDelete = false,
+  numeroCarga,
+  mapaExecucaoPorId
+}) {
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerName, setViewerName] = useState("");
   const [replacingRota, setReplacingRota] = useState(false);
@@ -65,6 +74,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [pedidoOdooModal, setPedidoOdooModal] = useState(null);
   const [tabelaExpandida, setTabelaExpandida] = useState(true);
+  const [itemDetalheExpandido, setItemDetalheExpandido] = useState(null);
   const [anexandoPdfPedido, setAnexandoPdfPedido] = useState(null);
   const editRotaRef = useRef(null);
   const queryClient = useQueryClient();
@@ -390,6 +400,7 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
 
   const totalFmt = rota.total_valor || "";
   const dataCriacao = rota.data_criacao ? format(new Date(rota.data_criacao + "T12:00:00"), "dd/MM") : "";
+  const numCargaExibicao = rota.numero_carga || numeroCarga || (rota.id ? rota.id.slice(-4).toUpperCase() : "01");
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm w-full transition-all">
@@ -397,14 +408,19 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
       <div className="flex items-start justify-between gap-4 flex-wrap pb-3 border-b border-border">
         <div className="space-y-1.5 min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20">
+            <span className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
               <Truck className="w-5 h-5" />
             </span>
             <div>
-              <h3 className="font-bold text-base text-foreground leading-tight">
-                {rota.titulo || "Rota de Entrega"}
-              </h3>
-              <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="bg-primary text-primary-foreground font-black px-2.5 py-0.5 rounded-md text-xs tracking-wider shadow-2xs">
+                  CARGA #{numCargaExibicao}
+                </span>
+                <h3 className="font-bold text-base text-foreground leading-tight">
+                  {rota.titulo || "Rota de Entrega"}
+                </h3>
+              </div>
+              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                 {rota.entrega_date && (
                   <span className="flex items-center gap-1 font-semibold text-foreground">
                     <Calendar className="w-3.5 h-3.5 text-primary" /> Entrega: <strong>{rota.entrega_date}</strong>
@@ -581,61 +597,10 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
         )}
       </div>
 
-      {/* Imagem da rota + Carregamento por Barracão em Grid Espaçoso */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-stretch">
-        {rota.rota_imagem_url && (
-          <div className="relative h-24 md:h-full min-h-[90px] rounded-xl border border-border overflow-hidden bg-muted group md:col-span-1 shadow-2xs">
-            <img src={rota.rota_imagem_url} alt="Folha de Rota" className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-black/30 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => { setViewerUrl(rota.rota_imagem_url); setViewerName(rota.rota_imagem_nome || "Folha de Rota"); }}
-                className="p-1.5 rounded-lg bg-white/90 text-slate-800 hover:bg-white transition-all shadow-sm flex items-center gap-1 text-[11px] font-bold cursor-pointer"
-                title="Visualizar documento em tela cheia"
-              >
-                <Eye className="w-4 h-4 text-primary" /> Ver Folha
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => editRotaRef.current?.click()}
-              disabled={replacingRota}
-              className="absolute top-1.5 right-1.5 h-6 w-6 rounded-md bg-background/90 border border-border shadow-xs flex items-center justify-center hover:bg-background disabled:opacity-60 cursor-pointer"
-              title="Trocar folha da rota e reler com IA"
-            >
-              {replacingRota ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> : <RefreshCw className="w-3.5 h-3.5 text-primary" />}
-            </button>
-            <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-white text-[10px] text-center py-0.5 font-bold">
-              Foto Original da Rota
-            </span>
-          </div>
-        )}
-
-        <div className={`grid gap-2.5 ${rota.rota_imagem_url ? "md:col-span-3" : "md:col-span-4"} ${departamentosAtivos.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"}`}>
-          {departamentosAtivos.map((dep) => {
-            const f = carregamentoField(dep);
-            const fotosArr = (() => { try { return JSON.parse(f.fotosJson || "[]"); } catch { return []; } })();
-            const fotosJsonFinal = fotosArr.length > 0
-              ? f.fotosJson
-              : (f.legadoUrl ? JSON.stringify([{ url: f.legadoUrl, nome: f.legadoNome || "foto" }]) : "[]");
-            return (
-              <RotaCarregamentoSlot
-                key={dep}
-                rotaId={rota.id}
-                dep={dep}
-                fotosJson={fotosJsonFinal}
-                videoUrl={f.videoUrl}
-                videoNome={f.videoNome}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Slot Traseira do Caminhão (Carga Geral) */}
-      <RotaTraseiraCaminhaoSlot
-        rotaId={rota.id}
-        fotosJson={rota.fotos_caminhao_traseira_json}
+      {/* Galeria de Fotos e Mídias Integrada da Carga */}
+      <GaleriaFotosRota
+        rota={rota}
+        onAtualizarRota={() => queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] })}
       />
 
       {/* Botão de Auditoria Fotográfica Sequencial (5 Etapas) */}
@@ -673,21 +638,22 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
             </span>
           </button>
 
-          {/* Tabela Ampla, Espaçosa e Nítida */}
+          {/* Tabela Ampla, Espaçosa e Nítida com Status em Chão de Fábrica */}
           {tabelaExpandida && (
-            <div className="rounded-xl border border-border overflow-hidden bg-background shadow-xs max-h-[460px] overflow-y-auto overflow-x-auto transition-all">
-              <table className="w-full text-xs min-w-[950px] border-collapse">
+            <div className="rounded-xl border border-border overflow-hidden bg-background shadow-xs max-h-[520px] overflow-y-auto overflow-x-auto transition-all">
+              <table className="w-full text-xs min-w-[1050px] border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 sticky top-0 z-10 border-b border-border shadow-xs">
                   <tr>
                     <th className="text-center p-2.5 font-bold w-12">#</th>
                     <th className="text-left p-2.5 font-bold w-36">Pedido (Odoo)</th>
-                    <th className="text-left p-2.5 font-bold min-w-[220px]">Cliente / Vendedor</th>
-                    <th className="text-left p-2.5 font-bold w-44">Barracão / Destino</th>
-                    <th className="text-left p-2.5 font-bold min-w-[260px]">Observações da Rota</th>
-                    <th className="text-left p-2.5 font-bold w-36">Bairro / Cidade</th>
-                    <th className="text-right p-2.5 font-bold w-28">Valor</th>
+                    <th className="text-left p-2.5 font-bold min-w-[200px]">Cliente / Vendedor</th>
+                    <th className="text-left p-2.5 font-bold w-36">Setor</th>
+                    <th className="text-left p-2.5 font-bold min-w-[220px]">Status no Chão de Fábrica</th>
+                    <th className="text-left p-2.5 font-bold min-w-[220px]">Observações da Rota</th>
+                    <th className="text-left p-2.5 font-bold w-32">Bairro / Cidade</th>
+                    <th className="text-right p-2.5 font-bold w-24">Valor</th>
                     <th className="text-center p-2.5 font-bold w-28">PDF (Odoo)</th>
-                    <th className="text-center p-2.5 font-bold w-32 pr-3">Fotos Pedido</th>
+                    <th className="text-center p-2.5 font-bold w-28 pr-3">Fotos</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -701,7 +667,21 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                       it.vendedor
                     );
 
-                    // Resolução do PDF oficial do pedido (recebido via webhook do Odoo ou anexo)
+                    const setor = it.barracao_sugerido || info?.barracao || "aguardando";
+                    const isTelhas = setor === "telhas";
+                    const isCD = setor === "corte_dobra";
+                    const isAmbos = setor === "ambos";
+
+                    // Estilo de borda lateral colorida marcante por setor
+                    const bordaSetorClass = isTelhas
+                      ? "border-l-4 border-l-blue-500 bg-blue-50/20 dark:bg-blue-950/10"
+                      : isCD
+                      ? "border-l-4 border-l-orange-500 bg-orange-50/20 dark:bg-orange-950/10"
+                      : isAmbos
+                      ? "border-l-4 border-l-purple-500 bg-purple-50/20 dark:bg-purple-950/10"
+                      : "border-l-4 border-l-slate-300 dark:border-l-slate-700";
+
+                    // Resolução do PDF oficial do pedido
                     const pdfUrl =
                       it.pdf_url ||
                       info?.pedidoOdoo?.pdf_pedido_url ||
@@ -712,111 +692,209 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                       info?.pedidoOdoo?.pdf_pedido_nome ||
                       `Pedido_${it.numero_pedido}.pdf`;
 
+                    // Cálculo do progresso no chão de fábrica
+                    const maquinasAtuais = [
+                      ...(info?.maquinasTelhas || []),
+                      ...(info?.maquinasCD || []),
+                    ].filter(Boolean);
+
+                    const produtos = [
+                      ...(info?.produtosTelhas || []),
+                      ...(info?.produtosCD || []),
+                    ];
+
+                    const totalItensProd = Math.max(1, produtos.length);
+                    const estaConcluido =
+                      info?.statusTelhas === "finalizado" ||
+                      info?.statusCD === "finalizado" ||
+                      (info?.pedidoOdoo?.status_pcp === "concluido");
+
+                    const estaProduzindo =
+                      info?.statusTelhas === "em_producao" ||
+                      info?.statusCD === "em_producao" ||
+                      maquinasAtuais.length > 0;
+
+                    const itensProntosCount = estaConcluido
+                      ? totalItensProd
+                      : estaProduzindo
+                      ? Math.max(0, totalItensProd - 1)
+                      : 0;
+
+                    const pctPronto = Math.round((itensProntosCount / totalItensProd) * 100);
+                    const estaExpandido = itemDetalheExpandido === it.numero_pedido;
+
                     return (
-                      <tr
-                        key={idx}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-colors"
-                      >
-                        <td className="p-2.5 text-center font-bold text-muted-foreground">
-                          <span className="inline-block w-6 h-6 leading-6 text-center rounded-full bg-slate-100 dark:bg-slate-800 text-[11px]">
-                            {it.ordem || idx + 1}
-                          </span>
-                        </td>
-                        <td className="p-2.5 whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => handleAbrirOdoo(it, info)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900 transition-colors shadow-2xs cursor-pointer group"
-                            title="Nº Pedido Odoo — Clique para ver croquis, itens e espelho do pedido no Odoo"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
-                            <span>#{it.numero_pedido}</span>
-                            {pdfUrl && (
-                              <span
-                                className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
-                                title="PDF do pedido já recebido e anexado"
-                              />
-                            )}
-                          </button>
-                        </td>
-                        <td className="p-2.5">
-                          <div className="font-semibold text-foreground text-xs leading-snug">
-                            {it.cliente}
-                          </div>
-                          {(it.vendedor || it.pagamento) && (
-                            <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
-                              {it.vendedor && <span>Vend: <strong className="font-medium text-slate-700 dark:text-slate-300">{it.vendedor}</strong></span>}
-                              {it.vendedor && it.pagamento && <span>•</span>}
-                              {it.pagamento && <span>Pg: <strong className="font-medium text-slate-700 dark:text-slate-300">{it.pagamento}</strong></span>}
+                      <React.Fragment key={idx}>
+                        <tr
+                          className={`hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-colors ${bordaSetorClass}`}
+                        >
+                          <td className="p-2.5 text-center font-bold text-muted-foreground">
+                            <span className="inline-block w-6 h-6 leading-6 text-center rounded-full bg-slate-100 dark:bg-slate-800 text-[11px]">
+                              {it.ordem || idx + 1}
+                            </span>
+                          </td>
+                          <td className="p-2.5 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirOdoo(it, info)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900 transition-colors shadow-2xs cursor-pointer group"
+                              title="Nº Pedido Odoo — Clique para ver croquis, itens e espelho do pedido no Odoo"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+                              <span>#{it.numero_pedido}</span>
+                              {pdfUrl && (
+                                <span
+                                  className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
+                                  title="PDF do pedido já recebido e anexado"
+                                />
+                              )}
+                            </button>
+                          </td>
+                          <td className="p-2.5">
+                            <div className="font-semibold text-foreground text-xs leading-snug">
+                              {it.cliente}
                             </div>
-                          )}
-                        </td>
-                        <td className="p-2.5">
-                          <div className="flex flex-col gap-1">
+                            {(it.vendedor || it.pagamento) && (
+                              <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                {it.vendedor && <span>Vend: <strong className="font-medium text-slate-700 dark:text-slate-300">{it.vendedor}</strong></span>}
+                                {it.vendedor && it.pagamento && <span>•</span>}
+                                {it.pagamento && <span>Pg: <strong className="font-medium text-slate-700 dark:text-slate-300">{it.pagamento}</strong></span>}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Setor: Telhas (Azul), Corte & Dobra (Laranja) ou Ambos (Roxo) */}
+                          <td className="p-2.5">
                             <select
-                              value={it.barracao_sugerido || info?.barracao || "aguardando"}
+                              value={setor}
                               onChange={(e) => alterarBarracaoPedido(it.numero_pedido, e.target.value)}
-                              className={`text-xs font-bold px-2 py-1 rounded-md border cursor-pointer outline-none transition-colors shadow-2xs ${info?.barracaoBadgeClass || "bg-background border-border text-foreground"}`}
-                              title="Clique para alterar o barracão responsável deste pedido"
+                              className={`text-xs font-bold px-2 py-1 rounded-md border cursor-pointer outline-none transition-colors shadow-2xs ${
+                                isTelhas
+                                  ? "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-800"
+                                  : isCD
+                                  ? "bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-950/60 dark:text-orange-200 dark:border-orange-800"
+                                  : isAmbos
+                                  ? "bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/60 dark:text-purple-200 dark:border-purple-800"
+                                  : "bg-slate-100 text-slate-700 border-slate-300"
+                              }`}
+                              title="Clique para alterar o setor responsável"
                             >
                               <option value="telhas">🏠 Telhas</option>
                               <option value="corte_dobra">🏗️ Corte & Dobra</option>
                               <option value="ambos">📦 Ambos os Barracões</option>
                               <option value="aguardando">⏳ Aguardando Entrada</option>
                             </select>
-                            {/* Apontamento em tempo real do Tablet e Local Físico da OP */}
-                            {info?.tabletLocal ? (
-                              <span
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border tracking-tight shadow-2xs ${info.tabletLocal.badgeClass}`}
-                                title={`Localização Física: ${info.tabletLocal.local}`}
-                              >
-                                {info.tabletLocal.label}
-                              </span>
-                            ) : info?.statusGeralLabel ? (
-                              <span className="text-[10px] text-muted-foreground font-medium">
-                                {info.statusGeralLabel}
-                                {info.maquinasTelhas?.length > 0 && ` (${info.maquinasTelhas.join(",")})`}
-                                {info.maquinasCD?.length > 0 && ` (${info.maquinasCD.join(",")})`}
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="p-2.5">
-                          {it.observacao ? (
-                            <div className="inline-flex items-start gap-1.5 font-semibold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-md p-1.5 text-[11px] leading-tight">
-                              <span className="flex-none">📌</span>
-                              <span>{it.observacao}</span>
+                          </td>
+
+                          {/* Status no Chão de Fábrica & Máquina Atual */}
+                          <td className="p-2.5">
+                            <div className="space-y-1">
+                              {/* Pílula da Máquina / Localização */}
+                              {info?.tabletLocal ? (
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border tracking-tight shadow-2xs ${info.tabletLocal.badgeClass}`}
+                                >
+                                  {info.tabletLocal.label}
+                                </span>
+                              ) : maquinasAtuais.length > 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950 dark:text-amber-200">
+                                  <Zap className="w-3 h-3 text-amber-600 fill-amber-500" />
+                                  <span>Na Máquina: {maquinasAtuais.join(", ")}</span>
+                                </span>
+                              ) : estaConcluido ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Pronto p/ Carregamento</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground font-medium">
+                                  {info?.statusGeralLabel || "Fila de Produção"}
+                                </span>
+                              )}
+
+                              {/* Mini Barra de Progresso de Itens */}
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      estaConcluido ? "bg-emerald-500" : estaProduzindo ? "bg-amber-500" : "bg-slate-400"
+                                    }`}
+                                    style={{ width: `${pctPronto || (estaConcluido ? 100 : 25)}%` }}
+                                  />
+                                </div>
+                                <span className="text-[9px] font-bold text-muted-foreground whitespace-nowrap">
+                                  {itensProntosCount}/{totalItensProd} itens
+                                </span>
+                              </div>
+
+                              {produtos.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setItemDetalheExpandido(estaExpandido ? null : it.numero_pedido)}
+                                  className="text-[10px] text-primary hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
+                                >
+                                  {estaExpandido ? "Ocultar peças" : `Ver ${produtos.length} peças`}
+                                  {estaExpandido ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                </button>
+                              )}
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </td>
-                        <td className="p-2.5 text-foreground text-xs">
-                          <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
-                            <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-none" />
-                            {it.bairro || "—"}
-                          </span>
-                        </td>
-                        <td className="p-2.5 text-right font-bold text-foreground text-xs tabular-nums">
-                          {it.valor || "—"}
-                        </td>
-                        <td className="p-2.5 text-center whitespace-nowrap">
-                          {pdfUrl ? (
-                            <div className="inline-flex items-center gap-1">
-                              <a
-                                href={pdfUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center h-7 px-2.5 gap-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 rounded-md shadow-2xs cursor-pointer group transition-colors"
-                                title={`Abrir PDF oficial do Pedido #${it.numero_pedido} (${pdfNome})`}
-                              >
-                                <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
-                                <span>Ver PDF</span>
-                                <ExternalLink className="w-3 h-3 text-emerald-500 opacity-60" />
-                              </a>
+                          </td>
+
+                          <td className="p-2.5">
+                            {it.observacao ? (
+                              <div className="inline-flex items-start gap-1.5 font-semibold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-md p-1.5 text-[11px] leading-tight">
+                                <span className="flex-none">📌</span>
+                                <span>{it.observacao}</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-foreground text-xs">
+                            <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                              <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-none" />
+                              {it.bairro || "—"}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-right font-bold text-foreground text-xs tabular-nums">
+                            {it.valor || "—"}
+                          </td>
+                          <td className="p-2.5 text-center whitespace-nowrap">
+                            {pdfUrl ? (
+                              <div className="inline-flex items-center gap-1">
+                                <a
+                                  href={pdfUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center h-7 px-2.5 gap-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 rounded-md shadow-2xs cursor-pointer group transition-colors"
+                                  title={`Abrir PDF oficial do Pedido #${it.numero_pedido} (${pdfNome})`}
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+                                  <span>Ver PDF</span>
+                                  <ExternalLink className="w-3 h-3 text-emerald-500 opacity-60" />
+                                </a>
+                                <label
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer shadow-2xs transition-colors"
+                                  title="Substituir PDF deste pedido manualmente"
+                                >
+                                  <Upload className="w-3.5 h-3.5 text-slate-500" />
+                                  <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => handleAnexarPdfManual(it.numero_pedido, e.target.files?.[0])}
+                                    disabled={anexandoPdfPedido === it.numero_pedido}
+                                  />
+                                </label>
+                              </div>
+                            ) : (
                               <label
-                                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer shadow-2xs transition-colors"
-                                title="Substituir PDF deste pedido manualmente"
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold border cursor-pointer transition-all shadow-2xs ${
+                                  anexandoPdfPedido === it.numero_pedido
+                                    ? "bg-slate-100 text-slate-500 border-slate-300 animate-pulse"
+                                    : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
+                                }`}
+                                title="PDF ainda não recebido. Clique para anexar o PDF deste pedido manualmente."
                               >
                                 <input
                                   type="file"
@@ -828,51 +906,62 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                                     if (file) handleAnexarPdfManual(it.numero_pedido, file);
                                   }}
                                 />
-                                <Upload className="w-3.5 h-3.5" />
+                                {anexandoPdfPedido === it.numero_pedido ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                                    <span>Anexando...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="w-3.5 h-3.5 text-amber-700" />
+                                    <span>Anexar PDF</span>
+                                  </>
+                                )}
                               </label>
-                            </div>
-                          ) : (
-                            <label
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold border cursor-pointer transition-all shadow-2xs ${
-                                anexandoPdfPedido === it.numero_pedido
-                                  ? "bg-slate-100 text-slate-500 border-slate-300 animate-pulse"
-                                  : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
-                              }`}
-                              title="PDF ainda não recebido. Clique para anexar o PDF deste pedido manualmente."
-                            >
-                              <input
-                                type="file"
-                                accept=".pdf,application/pdf"
-                                className="hidden"
-                                disabled={anexandoPdfPedido === it.numero_pedido}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleAnexarPdfManual(it.numero_pedido, file);
-                                }}
-                              />
-                              {anexandoPdfPedido === it.numero_pedido ? (
-                                <>
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-700" />
-                                  <span>Anexando...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="w-3.5 h-3.5 text-amber-700" />
-                                  <span>Anexar PDF</span>
-                                </>
-                              )}
-                            </label>
-                          )}
-                        </td>
-                        <td className="p-2.5 text-center pr-3">
-                          <FotoPedidoButton
-                            rotaId={rota.id}
-                            numeroPedido={it.numero_pedido}
-                            cliente={it.cliente}
-                            fotosPedidosJson={rota.fotos_pedidos_json}
-                          />
-                        </td>
-                      </tr>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-center pr-3">
+                            <FotoPedidoButton
+                              rotaId={rota.id}
+                              numeroPedido={it.numero_pedido}
+                              cliente={it.cliente}
+                              fotosPedidosJson={rota.fotos_pedidos_json}
+                            />
+                          </td>
+                        </tr>
+
+                        {/* Acordeão com Detalhamento de Peças e Máquinas do Pedido */}
+                        {estaExpandido && (
+                          <tr className="bg-slate-100/70 dark:bg-slate-900/70 border-l-4 border-l-primary">
+                            <td colSpan={10} className="p-3 pl-12">
+                              <div className="bg-card p-3 rounded-lg border border-border space-y-2">
+                                <div className="text-[11px] font-bold text-foreground flex items-center justify-between">
+                                  <span>Peças / Itens de Fabricação deste Pedido:</span>
+                                  <span className="text-muted-foreground">{produtos.length} produtos listados</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                  {produtos.map((pNome, pIdx) => (
+                                    <div
+                                      key={pIdx}
+                                      className="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-slate-800 border border-border text-[11px]"
+                                    >
+                                      <span className="font-medium text-foreground truncate mr-2">
+                                        • {pNome}
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[9px] h-4 px-1 bg-emerald-50 text-emerald-700 border-emerald-300 font-bold shrink-0"
+                                      >
+                                        ✓ Concluído
+                                      </Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

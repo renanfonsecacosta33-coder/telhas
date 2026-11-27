@@ -3,34 +3,36 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { format, addDays, isToday, isTomorrow, isSameDay, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
-import { Truck, Plus, Package, Factory, Layers, Calendar, Camera } from "lucide-react";
+import {
+  Truck,
+  Plus,
+  Package,
+  Factory,
+  Layers,
+  Calendar as CalendarIcon,
+  Camera,
+  Search,
+  Filter,
+  RefreshCw,
+  Clock,
+  Sparkles
+} from "lucide-react";
 import { useFilial } from "@/contexts/FilialContext";
 import NovaCargaDialog from "@/components/logistica/NovaCargaDialog";
-import RotasEntregaSection from "@/components/logistica/RotasEntregaSection";
-import ResumoDiaRotas from "@/components/logistica/ResumoDiaRotas";
-import BuscaFiltroRotas from "@/components/logistica/BuscaFiltroRotas";
-import { filtrarRotas } from "@/lib/rotaDataHelper";
-import DateNavigatorStrip from "@/components/logistica/DateNavigatorStrip";
-import CargaCard from "@/components/logistica/CargaCard";
-import AuditSidebar from "@/components/logistica/AuditSidebar";
+import VisualizadorRotaFoco from "@/components/logistica/VisualizadorRotaFoco";
 import CalendarioEntregas from "@/components/logistica/CalendarioEntregas";
 
 export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
   const isDespacho = mode === "despacho";
-  const [user, setUser] = useState(null);
+  const { filialAtiva } = useFilial();
   const [dialogCarga, setDialogCarga] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [selectedTipo, setSelectedTipo] = useState(null);
   const [tab, setTab] = useState(defaultTab);
-  const [dataSelecionadaCalendario, setDataSelecionadaCalendario] = useState(null);
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("todas");
-  const [somenteSemFoto, setSomenteSemFoto] = useState(false);
-  const { filialAtiva } = useFilial();
-
+  const [dataSelecionada, setDataSelecionada] = useState(() => format(new Date(), "yyyy-MM-dd"));
 
   useEffect(() => {
     if (defaultTab) {
@@ -38,57 +40,18 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     }
   }, [defaultTab]);
 
-  useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-  }, []);
-
-  // Fetch orders from Telhas — pendente, em_producao, finalizado (not cancelado)
-  const { data: pedidosTelhas = [] } = useQuery({
-    queryKey: ["logistica-telhas", filialAtiva],
-    queryFn: () => base44.entities.Pedido.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
-    placeholderData: (prev) => prev,
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: false,
-  });
-
-  // Fetch orders from CD — pendente, em_producao, finalizado (not cancelado)
-  const { data: ordensMaq = [] } = useQuery({
-    queryKey: ["logistica-cd-maq", filialAtiva],
-    queryFn: () => base44.entities.OrdemMaquinaCD.filter({ unidade: filialAtiva, status: { $in: ["pendente", "aguardando_corte", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
-    placeholderData: (prev) => prev,
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: false,
-  });
-
-  const { data: ordensDesb = [] } = useQuery({
-    queryKey: ["logistica-cd-desb", filialAtiva],
-    queryFn: () => base44.entities.OrdemDesbobinadeira.filter({ unidade: filialAtiva, status: { $in: ["pendente", "em_producao", "finalizado"] } }, "-data_finalizacao", 250),
-    placeholderData: (prev) => prev,
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: false,
-  });
-
-  // Fetch all cargas
-  const { data: cargas = [] } = useQuery({
-    queryKey: ["cargas", filialAtiva],
-    queryFn: () => base44.entities.Carga.filter({ unidade: filialAtiva }, "-data_criacao", 100),
-    placeholderData: (prev) => prev,
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: false,
-  });
-
-  // Fetch rotas de entrega para o DateNavigatorStrip
-  const { data: rotas = [] } = useQuery({
+  // Carrega apenas as Rotas de Entrega da filial (100% focado em rotas)
+  const {
+    data: rotas = [],
+    isLoading,
+    refetch: refetchRotas,
+  } = useQuery({
     queryKey: ["rotas-entrega", filialAtiva],
     queryFn: () =>
       base44.entities.RotaEntrega.filter(
         { unidade: filialAtiva, status: { $ne: "cancelado" } },
         "-data_criacao",
-        50
+        100
       ),
     placeholderData: (prev) => prev,
     staleTime: 30000,
@@ -96,157 +59,188 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     refetchOnWindowFocus: false,
   });
 
-  // Normalize all items
-  const allItens = useMemo(() => {
-    const telhas = pedidosTelhas.map(p => ({
-      ...p,
-      _tipo: "pedido",
-      _setor: "Telhas",
-      _label: p.produto || "Telha",
-      _qtd: p.metros || p.quantidade_telhas || 0,
-    }));
-    const maq = ordensMaq.map(o => ({
-      ...o,
-      _tipo: "ordem_maquina",
-      _setor: "Corte e Dobra",
-      _label: o.tipo_peca || o.maquina || "Peça CD",
-      _qtd: o.quantidade || 0,
-    }));
-    const desb = ordensDesb
-      .filter(o => o.destino === "pedido_direto")
-      .map(o => ({
-        ...o,
-        _tipo: "ordem_desb",
-        _setor: "Corte e Dobra",
-        _label: o.destino === "pedido_direto" ? "Chapa p/ Cliente" : "Chapa p/ Estoque",
-        _qtd: o.quantidade || 0,
-      }));
-    return [...telhas, ...maq, ...desb];
-  }, [pedidosTelhas, ordensMaq, ordensDesb]);
-
-  // Items filtered by active tab
-  const itensFiltradosTab = useMemo(() => {
-    let items = tab === "todos"
-      ? allItens
-      : tab === "telhas"
-      ? allItens.filter(i => i._setor === "Telhas")
-      : allItens.filter(i => i._setor === "Corte e Dobra");
-    if (dataSelecionadaCalendario) {
-      items = items.filter(i => (i.data_finalizacao || i.data || "") === dataSelecionadaCalendario);
-    }
-    return items;
-  }, [allItens, tab, dataSelecionadaCalendario]);
-
-  // Available items (not yet linked to a carga)
-  const pedidosDisponiveis = useMemo(() => {
-    const linkedIds = new Set();
-    cargas.forEach(c => {
-      if (c.pedidos_json) {
-        try {
-          JSON.parse(c.pedidos_json).forEach(p => linkedIds.add(p.id));
-        } catch {}
+  // Mapa de contagem de rotas por data
+  const rotasPorDataMap = useMemo(() => {
+    const map = {};
+    rotas.forEach((r) => {
+      // Normaliza a data da rota (pode vir em entrega_date, data_entrega ou data_criacao)
+      let dStr = r.data_entrega || r.entrega_date || r.data_criacao || "";
+      if (dStr) {
+        if (/^\d{2}\/\d{2}(\/\d{4})?$/.test(dStr)) {
+          // Converte formato DD/MM ou DD/MM/YYYY para YYYY-MM-DD
+          const parts = dStr.split("/");
+          const ano = parts[2] || new Date().getFullYear();
+          dStr = `${ano}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+        } else if (dStr.includes("T")) {
+          dStr = dStr.split("T")[0];
+        }
+        map[dStr] = (map[dStr] || 0) + 1;
       }
     });
-    return itensFiltradosTab.filter(i => !linkedIds.has(i.id) && (!i.status_expedicao || i.status_expedicao === "aguardando"));
-  }, [itensFiltradosTab, cargas]);
+    return map;
+  }, [rotas]);
 
-  // Filter cargas by active tab — only show cargas that have at least one pedido from the active sector
-  const cargasAtivas = useMemo(() => {
-    return cargas.filter(c => {
-      if (c.status !== "carregando" && c.status !== "em_transito") return false;
-      if (!c.pedidos_json) return true; // empty carga — show in both tabs
-      try {
-        const linked = JSON.parse(c.pedidos_json);
-        if (linked.length === 0) return true; // empty carga — show in both tabs
-        if (tab === "todos") return true;
-        if (tab === "telhas") return linked.some(p => p.tipo === "pedido");
-        return linked.some(p => p.tipo === "ordem_maquina" || p.tipo === "ordem_desb");
-      } catch {
-        return true;
-      }
-    });
-  }, [cargas, tab]);
+  // Dias rápidos para a barra horizontal do topo: Ontem, Hoje, +5 dias futuros
+  const diasNavegacao = useMemo(() => {
+    const hoje = new Date();
+    const lista = [];
+    for (let offset = -1; offset <= 5; offset++) {
+      const data = addDays(hoje, offset);
+      const dataIso = format(data, "yyyy-MM-dd");
+      const diaSemana = format(data, "EEE", { locale: ptBR }).replace(".", "");
+      const diaMes = format(data, "dd/MMM", { locale: ptBR });
 
-  // Rotas do dia (ou de todas as datas) conforme aba e filtros escolhidos
-  const departamentoAtivo = tab === "todos" ? null : tab === "telhas" ? "telhas" : "corte_dobra";
-  const rotasDoDia = useMemo(
-    () =>
-      filtrarRotas(rotas, {
-        departamento: departamentoAtivo,
-        dataSelecionada: dataSelecionadaCalendario,
-        busca,
-        statusFiltro,
-        somenteSemFoto,
-      }),
-    [rotas, departamentoAtivo, dataSelecionadaCalendario, busca, statusFiltro, somenteSemFoto]
-  );
+      let rotulo = isToday(data)
+        ? "Hoje"
+        : isTomorrow(data)
+        ? "Amanhã"
+        : `${diaSemana}, ${diaMes}`;
 
-
-  const handleSelectItem = (item, tipo) => {
-    // For CargaCard linked items, we need to fetch the full item
-    if (item.id && !item._tipo) {
-      // It's a minimal object from pedidos_json — find in allItens
-      const full = allItens.find(i => i.id === item.id);
-      if (full) {
-        setSelectedItem(full);
-        setSelectedTipo(full._tipo);
-        return;
-      }
+      lista.push({
+        dataIso,
+        rotulo,
+        diaMes,
+        qtd: rotasPorDataMap[dataIso] || 0,
+      });
     }
-    setSelectedItem(item);
-    setSelectedTipo(tipo || item._tipo);
-  };
+    return lista;
+  }, [rotasPorDataMap]);
+
+  // Filtra as rotas conforme a data selecionada, setor ativo e busca
+  const rotasFiltradas = useMemo(() => {
+    return rotas.filter((r) => {
+      // 1. Filtro por data (se houver uma data selecionada específica)
+      if (dataSelecionada && dataSelecionada !== "todas") {
+        let rData = r.data_entrega || r.entrega_date || r.data_criacao || "";
+        if (/^\d{2}\/\d{2}/.test(rData)) {
+          const parts = rData.split("/");
+          const ano = parts[2] || new Date().getFullYear();
+          rData = `${ano}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+        } else if (rData.includes("T")) {
+          rData = rData.split("T")[0];
+        }
+        if (rData && rData !== dataSelecionada) {
+          return false;
+        }
+      }
+
+      // 2. Filtro por setor / barracão
+      if (tab === "telhas") {
+        const itensStr = r.itens_json || "";
+        if (!itensStr.includes("telhas") && !itensStr.includes("ambos") && !(r.departamentos || []).includes("telhas")) {
+          return false;
+        }
+      } else if (tab === "cd") {
+        const itensStr = r.itens_json || "";
+        if (!itensStr.includes("corte_dobra") && !itensStr.includes("ambos") && !(r.departamentos || []).includes("corte_dobra")) {
+          return false;
+        }
+      }
+
+      // 3. Filtro por busca de texto (título, motorista, placa, pedido ou cidade)
+      if (busca.trim()) {
+        const q = busca.toLowerCase();
+        const noTitulo = (r.titulo || "").toLowerCase().includes(q);
+        const noMotorista = (r.motorista_nome || "").toLowerCase().includes(q);
+        const naPlaca = (r.placa || "").toLowerCase().includes(q);
+        const naCidade = (r.cidade_destino || "").toLowerCase().includes(q);
+        const nosItens = (r.itens_json || "").toLowerCase().includes(q);
+        if (!noTitulo && !noMotorista && !naPlaca && !naCidade && !nosItens) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [rotas, dataSelecionada, tab, busca]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-5">
+      {/* Cabeçalho Principal da Logística */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Truck className="w-6 h-6 text-primary" />
-            Logística — Expedição
-          </h1>
-          <p className="text-sm text-muted-foreground">Agrupamento de cargas e carregamento de caminhões</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-primary text-primary-foreground shadow-sm">
+                <Truck className="w-6 h-6" />
+              </span>
+              Logística & Expedição de Cargas
+            </h1>
+            <Badge variant="outline" className="text-xs font-bold border-primary/30 text-primary bg-primary/5">
+              Modo Foco em Rotas
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Visualização ampla de cargas, romaneio oficial, galeria de fotos e rastreamento em chão de fábrica
+          </p>
         </div>
+
         <div className="flex items-center gap-2 flex-wrap">
-          <Button asChild variant="outline" className="gap-2 border-primary/40 text-primary hover:bg-primary/10">
+          <Button asChild variant="outline" className="gap-2 border-primary/40 text-primary hover:bg-primary/10 h-9 font-semibold text-xs">
             <Link to="/timeline-carregamento">
-              <Camera className="w-4 h-4" /> Timeline de Carregamento (5 Etapas)
+              <Camera className="w-4 h-4" /> Timeline de Amarração (5 Etapas)
             </Link>
           </Button>
+
           {!isDespacho && (
-            <Button onClick={() => setDialogCarga(true)} className="gap-2">
+            <Button onClick={() => setDialogCarga(true)} className="gap-2 font-bold h-9 text-xs shadow-sm cursor-pointer">
               <Plus className="w-4 h-4" /> Nova Carga
             </Button>
           )}
+
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => refetchRotas()}
+            className="h-9 w-9 border-border cursor-pointer"
+            title="Atualizar dados de rotas"
+          >
+            <RefreshCw className="w-4 h-4 text-muted-foreground" />
+          </Button>
         </div>
       </div>
 
-      {/* Tabs Barracões */}
+      {/* Tabs por Barracão + Calendário */}
       <div className="flex items-center gap-2 border-b border-border overflow-x-auto">
         <button
           onClick={() => setTab("todos")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${tab === "todos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            tab === "todos"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
         >
-          <Package className="w-4 h-4" /> Ambos os Barracões (Todos)
+          <Package className="w-4 h-4" /> Todas as Cargas (Ambos os Barracões)
         </button>
         <button
           onClick={() => setTab("telhas")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${tab === "telhas" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            tab === "telhas"
+              ? "border-blue-600 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
         >
-          <Factory className="w-4 h-4" /> Telhas
+          <Factory className="w-4 h-4" /> Cargas com Telhas
         </button>
         <button
           onClick={() => setTab("cd")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${tab === "cd" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            tab === "cd"
+              ? "border-orange-600 text-orange-600 dark:text-orange-400"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
         >
-          <Layers className="w-4 h-4" /> Corte e Dobra
+          <Layers className="w-4 h-4" /> Cargas com Corte & Dobra
         </button>
         <button
           onClick={() => setTab("calendario")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${tab === "calendario" ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            tab === "calendario"
+              ? "border-primary text-primary font-black"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
         >
-          <Calendar className="w-4 h-4 text-emerald-500" /> Calendário de Entregas
+          <CalendarIcon className="w-4 h-4 text-emerald-500" /> Visão Calendário Mensal
         </button>
       </div>
 
@@ -254,58 +248,86 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
         <CalendarioEntregas filial={filialAtiva} />
       ) : (
         <>
-          {/* Resumo do dia + busca e filtros de rotas */}
-          <ResumoDiaRotas rotas={rotasDoDia} dataSelecionada={dataSelecionadaCalendario} />
+          {/* BARRA HORIZONTAL DE DIAS (Separação de Rotas por Dia com Badges) */}
+          <div className="bg-card p-3 rounded-2xl border border-border shadow-xs space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <CalendarIcon className="w-4 h-4 text-primary" /> Selecione o Dia de Expedição:
+              </span>
 
-          <BuscaFiltroRotas
-            busca={busca}
-            onBusca={setBusca}
-            status={statusFiltro}
-            onStatus={setStatusFiltro}
-            somenteSemFoto={somenteSemFoto}
-            onSomenteSemFoto={setSomenteSemFoto}
-          />
+              {/* Busca Rápida por Motorista, Placa, Cidade ou Pedido */}
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar carga, cidade, placa..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
 
-      {/* Faixa Deslizante de Navegação por Calendário */}
-      <DateNavigatorStrip
-        dataSelecionada={dataSelecionadaCalendario}
-        onSelectData={setDataSelecionadaCalendario}
-        rotas={rotas}
-        pedidos={allItens}
-      />
+            {/* Pílulas de Dias */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+              <button
+                type="button"
+                onClick={() => setDataSelecionada("todas")}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  dataSelecionada === "todas"
+                    ? "bg-primary text-primary-foreground border-primary shadow-xs font-black"
+                    : "bg-background hover:bg-muted/50 border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>Todas as Datas</span>
+                <Badge variant="secondary" className="text-[10px] h-4.5 px-1 font-bold">
+                  {rotas.length}
+                </Badge>
+              </button>
 
-      {/* Cargas ativas */}
-      {cargasAtivas.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <Truck className="w-5 h-5 text-primary" /> Caminhões / Cargas
-          </h2>
-          <div className="grid gap-3 lg:grid-cols-2">
-            {cargasAtivas.map(c => (
-              <CargaCard key={c.id} carga={c} pedidosDisponiveis={pedidosDisponiveis} onSelectItem={handleSelectItem} mode={mode} tab={tab} />
-            ))}
+              {diasNavegacao.map((d) => {
+                const isSelected = dataSelecionada === d.dataIso;
+                return (
+                  <button
+                    key={d.dataIso}
+                    type="button"
+                    onClick={() => setDataSelecionada(d.dataIso)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shrink-0 cursor-pointer flex items-center gap-2 ${
+                      isSelected
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm scale-[1.02] font-black"
+                        : "bg-background hover:bg-muted/50 border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>{d.rotulo}</span>
+                    <Badge
+                      className={`text-[10px] h-4.5 px-1.5 font-black ${
+                        isSelected
+                          ? "bg-white text-primary hover:bg-white"
+                          : d.qtd > 0
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {d.qtd} {d.qtd === 1 ? "carga" : "cargas"}
+                    </Badge>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Rotas de Entrega distribuídas pela IA — visão completa da expedição */}
-      <RotasEntregaSection
-        departamento={tab === "todos" ? null : tab === "telhas" ? "telhas" : "corte_dobra"}
-        filialAtiva={filialAtiva}
-        title="Rotas de Entrega — IA"
-        allowDelete
-        dataSelecionada={dataSelecionadaCalendario}
-        onLimparFiltroData={() => setDataSelecionadaCalendario(null)}
-        busca={busca}
-        statusFiltro={statusFiltro}
-        somenteSemFoto={somenteSemFoto}
-      />
-
+          {/* VISUALIZADOR PRINCIPAL: MODO FOCO EM 1 ROTA GRANDE COM SETAS LATERAIS */}
+          <VisualizadorRotaFoco
+            rotas={rotasFiltradas}
+            departamento={tab === "todos" ? null : tab === "telhas" ? "telhas" : "corte_dobra"}
+            allowDelete
+            dataSelecionada={dataSelecionada}
+          />
         </>
       )}
 
+      {/* Modal para Nova Carga */}
       <NovaCargaDialog open={dialogCarga} onClose={() => setDialogCarga(false)} filialAtiva={filialAtiva} />
-      <AuditSidebar open={!!selectedItem} onClose={() => setSelectedItem(null)} item={selectedItem} tipo={selectedTipo} />
     </div>
   );
 }
