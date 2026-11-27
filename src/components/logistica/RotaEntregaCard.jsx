@@ -30,7 +30,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ExternalLink,
-  Clock
+  Clock,
+  Upload
 } from "lucide-react";
 import { toast } from "sonner";
 import ImageViewer from "@/components/ui/ImageViewer";
@@ -64,8 +65,67 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [pedidoOdooModal, setPedidoOdooModal] = useState(null);
   const [tabelaExpandida, setTabelaExpandida] = useState(true);
+  const [anexandoPdfPedido, setAnexandoPdfPedido] = useState(null);
   const editRotaRef = useRef(null);
   const queryClient = useQueryClient();
+
+  const handleAnexarPdfManual = async (numeroPedido, file) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
+      toast.error("Por favor, selecione um arquivo em formato PDF.");
+      return;
+    }
+    setAnexandoPdfPedido(numeroPedido);
+    toast.loading(`Enviando PDF do Pedido #${numeroPedido}...`, { id: "upload-pdf-manual" });
+    try {
+      const uploadRes = await base44.integrations.Core.UploadFile({ file });
+      const fileUrl = uploadRes?.file_url;
+      if (!fileUrl) throw new Error("Servidor não retornou link permanente.");
+
+      const novosItens = itens.map((it) => {
+        if (String(it.numero_pedido).trim() === String(numeroPedido).trim()) {
+          return {
+            ...it,
+            pdf_url: fileUrl,
+            pdf_nome: file.name
+          };
+        }
+        return it;
+      });
+
+      await base44.entities.RotaEntrega.update(rota.id, {
+        itens_json: JSON.stringify(novosItens)
+      });
+
+      // Tenta atualizar também em PedidoOdoo para sincronizar
+      try {
+        const limpo = String(numeroPedido).replace(/\D/g, "");
+        const pOdoos = await base44.entities.PedidoOdoo.filter({
+          $or: [
+            { numero_pedido: String(numeroPedido) },
+            ...(limpo ? [{ numero_pedido: limpo }, { numero_pedido: `S${limpo.padStart(5, "0")}` }] : [])
+          ]
+        }, "-created_date", 2);
+        if (pOdoos && pOdoos.length > 0) {
+          for (const p of pOdoos) {
+            await base44.entities.PedidoOdoo.update(p.id, {
+              pdf_pedido_url: fileUrl,
+              pdf_pedido_nome: file.name,
+              pdf_url: fileUrl
+            }).catch(() => {});
+          }
+        }
+      } catch {}
+
+      queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-odoo"] });
+      toast.success(`PDF do Pedido #${numeroPedido} anexado com sucesso!`, { id: "upload-pdf-manual" });
+    } catch (err) {
+      toast.error("Erro ao anexar PDF: " + (err?.message || "tente novamente"), { id: "upload-pdf-manual" });
+    } finally {
+      setAnexandoPdfPedido(null);
+    }
+  };
 
   const handleSolicitarPdfsOdoo = async () => {
     const listaPedidos = itens.map((it) => it.numero_pedido).filter(Boolean);
@@ -703,13 +763,21 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                               <option value="ambos">📦 Ambos os Barracões</option>
                               <option value="aguardando">⏳ Aguardando Entrada</option>
                             </select>
-                            {info?.statusGeralLabel && (
+                            {/* Apontamento em tempo real do Tablet e Local Físico da OP */}
+                            {info?.tabletLocal ? (
+                              <span
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border tracking-tight shadow-2xs ${info.tabletLocal.badgeClass}`}
+                                title={`Localização Física: ${info.tabletLocal.local}`}
+                              >
+                                {info.tabletLocal.label}
+                              </span>
+                            ) : info?.statusGeralLabel ? (
                               <span className="text-[10px] text-muted-foreground font-medium">
                                 {info.statusGeralLabel}
                                 {info.maquinasTelhas?.length > 0 && ` (${info.maquinasTelhas.join(",")})`}
                                 {info.maquinasCD?.length > 0 && ` (${info.maquinasCD.join(",")})`}
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         </td>
                         <td className="p-2.5">
@@ -733,25 +801,66 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
                         </td>
                         <td className="p-2.5 text-center whitespace-nowrap">
                           {pdfUrl ? (
-                            <a
-                              href={pdfUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center h-7 px-2.5 gap-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 rounded-md shadow-2xs cursor-pointer group transition-colors"
-                              title={`Abrir PDF oficial do Pedido #${it.numero_pedido} (${pdfNome})`}
-                            >
-                              <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
-                              <span>Ver PDF</span>
-                              <ExternalLink className="w-3 h-3 text-emerald-500 opacity-60" />
-                            </a>
+                            <div className="inline-flex items-center gap-1">
+                              <a
+                                href={pdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center h-7 px-2.5 gap-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 rounded-md shadow-2xs cursor-pointer group transition-colors"
+                                title={`Abrir PDF oficial do Pedido #${it.numero_pedido} (${pdfNome})`}
+                              >
+                                <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+                                <span>Ver PDF</span>
+                                <ExternalLink className="w-3 h-3 text-emerald-500 opacity-60" />
+                              </a>
+                              <label
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer shadow-2xs transition-colors"
+                                title="Substituir PDF deste pedido manualmente"
+                              >
+                                <input
+                                  type="file"
+                                  accept=".pdf,application/pdf"
+                                  className="hidden"
+                                  disabled={anexandoPdfPedido === it.numero_pedido}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleAnexarPdfManual(it.numero_pedido, file);
+                                  }}
+                                />
+                                <Upload className="w-3.5 h-3.5" />
+                              </label>
+                            </div>
                           ) : (
-                            <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
-                              title="PDF ainda não recebido do Odoo. Clique em 'Puxar PDFs do Odoo' acima para solicitar."
+                            <label
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold border cursor-pointer transition-all shadow-2xs ${
+                                anexandoPdfPedido === it.numero_pedido
+                                  ? "bg-slate-100 text-slate-500 border-slate-300 animate-pulse"
+                                  : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
+                              }`}
+                              title="PDF ainda não recebido. Clique para anexar o PDF deste pedido manualmente."
                             >
-                              <Clock className="w-3 h-3 text-amber-600" />
-                              Sem PDF
-                            </span>
+                              <input
+                                type="file"
+                                accept=".pdf,application/pdf"
+                                className="hidden"
+                                disabled={anexandoPdfPedido === it.numero_pedido}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleAnexarPdfManual(it.numero_pedido, file);
+                                }}
+                              />
+                              {anexandoPdfPedido === it.numero_pedido ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                                  <span>Anexando...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="w-3.5 h-3.5 text-amber-700" />
+                                  <span>Anexar PDF</span>
+                                </>
+                              )}
+                            </label>
                           )}
                         </td>
                         <td className="p-2.5 text-center pr-3">

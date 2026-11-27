@@ -134,6 +134,8 @@ export function getPrioridadeConfig(pedido) {
  */
 export function hasPrioridadeDefinida(pedido) {
   if (!pedido) return false;
+  if (pedido.prioridade_selecionada === false) return false;
+  if (pedido.prioridade_nivel === "SEM_PRIORIDADE" || pedido.tipo_prioridade === "SEM_PRIORIDADE" || pedido.prioridade_logistica === "SEM_PRIORIDADE") return false;
   if (pedido.prioridade_selecionada === true || pedido.prioridade_logistica_definida === true) return true;
   const nivel = pedido.prioridade_nivel || pedido.tipo_prioridade || pedido.prioridade_logistica;
   if (nivel === "RETIRA_AGORA" || nivel === "ROTA" || nivel === "PRIORIDADE" || nivel === "NORMAL" || nivel === "normal") return true;
@@ -452,7 +454,7 @@ export function classificarCategoriaDiaPedido(pedido, selectedDay) {
     return {
       categoria: "SEM_PRIORIDADE",
       label: `⚠️ SEM PRIORIDADE${diaMes}`,
-      badgeCls: "bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-400 font-black",
+      badgeCls: "bg-amber-500 text-slate-950 border-amber-600 shadow-sm font-black tracking-wide",
       pesoVisual: 99
     };
   }

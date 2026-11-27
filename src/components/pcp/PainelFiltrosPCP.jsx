@@ -546,6 +546,7 @@ export default function PainelFiltrosPCP({
         <Opt
           on={filtroVendedor === "todos"}
           onClick={() => setFiltroVendedor("todos")}
+          badge={stats.total}
         >
           Todos os Vendedores
         </Opt>

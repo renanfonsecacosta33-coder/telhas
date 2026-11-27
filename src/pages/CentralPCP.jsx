@@ -1704,23 +1704,63 @@ export default function CentralPCP() {
   // das Ativas antes de ela estar disponível na consulta de Concluídas.
   const isPedidoConcluido = (p) => p?.status_pcp === "concluido" && !isPedidoEntregue(p);
 
-  // Contadores de pedidos ativos por Loja / Filial
+  // Contadores de pedidos ativos por Loja / Filial (base real unificada)
   const statsLoja = useMemo(() => {
     const counts = { todas: 0, "Matriz AJL": 0, Pinhais: 0, "Ivaiporã": 0, "Ponta Grossa": 0 };
-    for (const row of resumoServidor.rows) {
-      if (["concluido", "entregue", "cancelado"].includes(row.status_pcp)) continue;
-      counts.todas += row.count;
-      const unidade = row.unidade || "Matriz AJL";
-      counts[unidade] = (counts[unidade] || 0) + row.count;
+    if (resumoServidor?.rows?.length > 0) {
+      for (const row of resumoServidor.rows) {
+        if (["concluido", "entregue", "cancelado"].includes(row.status_pcp)) continue;
+        counts.todas += row.count;
+        const unidade = row.unidade || "Matriz AJL";
+        counts[unidade] = (counts[unidade] || 0) + row.count;
+      }
+      if (counts.todas > 0) return counts;
+    }
+    // Fallback robusto sobre os pedidos reais em memória:
+    for (const p of pedidos) {
+      if (isPedidoConcluido(p) || isPedidoEntregue(p)) continue;
+      counts.todas++;
+      const unidade = p.unidade || "Matriz AJL";
+      counts[unidade] = (counts[unidade] || 0) + 1;
     }
     return counts;
-  }, [resumoServidor]);
+  }, [resumoServidor, pedidos]);
 
   // Pedidos pertencentes à Central PCP selecionada (ou todos se 'todas')
   const pedidosDaLoja = useMemo(() => {
     if (lojaSelecionada === "todas") return pedidos;
     return pedidos.filter(p => (p.unidade || "Matriz AJL") === lojaSelecionada);
   }, [pedidos, lojaSelecionada]);
+
+  // Avalia se um pedido atende ao filtro de período/data configurado
+  const verificarPedidoNoPeriodoData = (p) => {
+    if (!filtroDataAtivo) return true;
+    const dataAlvoStr = filtroDataCampo === "data_recebimento" ? p.data_recebimento : p.data_entrega;
+    const dataAlvoISO = extrairDataISO(dataAlvoStr);
+    if (!dataAlvoISO) return false;
+
+    const hojeStr = formatToLocalDateInput(new Date());
+    const concluido = isPedidoConcluido(p);
+
+    if (filtroDataPreset === "atrasados") {
+      if (dataAlvoISO >= hojeStr || concluido) return false;
+    } else if (filtroDataInicio && filtroDataFim) {
+      const dMin = filtroDataInicio <= filtroDataFim ? filtroDataInicio : filtroDataFim;
+      const dMax = filtroDataInicio <= filtroDataFim ? filtroDataFim : filtroDataInicio;
+      if (dataAlvoISO < dMin || dataAlvoISO > dMax) return false;
+    } else if (filtroDataInicio) {
+      if (dataAlvoISO !== filtroDataInicio) return false;
+    } else if (filtroDataFim) {
+      if (dataAlvoISO > filtroDataFim) return false;
+    }
+    return true;
+  };
+
+  // Base comum e unificada para contadores da sidebar e listagem (respeita data e filial ativas)
+  const pedidosBaseFiltros = useMemo(() => {
+    if (!filtroDataAtivo) return pedidosDaLoja;
+    return pedidosDaLoja.filter(verificarPedidoNoPeriodoData);
+  }, [pedidosDaLoja, filtroDataAtivo, filtroDataCampo, filtroDataPreset, filtroDataInicio, filtroDataFim]);
 
   // Diagnóstico em tempo real do chão de fábrica para cada pedido
   const mapaExecucaoPorId = useMemo(() => {
@@ -1731,6 +1771,7 @@ export default function CentralPCP() {
     return map;
   }, [pedidosDaLoja, pedidosProducao, ordensCD]);
 
+  // 🎯 Contadores de Status da Fila do PCP calculados sobre a base real unificada (nunca zeram falsamente)
   const stats = useMemo(() => {
     let ativos = 0;
     let pendentes = 0;
@@ -1741,7 +1782,7 @@ export default function CentralPCP() {
     let entregues = 0;
     let atrasados = 0;
 
-    pedidosDaLoja.forEach(p => {
+    pedidosBaseFiltros.forEach(p => {
       const ent = isPedidoEntregue(p);
       const conc = isPedidoConcluido(p);
       const diag = mapaExecucaoPorId.get(p.id);
@@ -1752,31 +1793,32 @@ export default function CentralPCP() {
         concluidos++;
       } else {
         ativos++;
-        if (p.status_pcp === "pendente_distribuicao") pendentes++;
-        if (p.status_pcp === "distribuido") distribuidos++;
+        if (p.status_pcp === "pendente_distribuicao") {
+          pendentes++;
+        } else if (p.status_pcp === "distribuido") {
+          distribuidos++;
+        } else {
+          pendentes++;
+        }
         if (diag?.produzindoAgora) produzindoAgora++;
         if (diag?.aguardandoInicio) aguardandoMaquina++;
         if (diasUteisRestantes(p.data_entrega) < 0) atrasados++;
       }
     });
 
-    const rows = resumoServidor.rows.filter(r => lojaSelecionada === "todas" || (r.unidade || "Matriz AJL") === lojaSelecionada);
-    const count = status => rows.filter(r => r.status_pcp === status).reduce((sum, r) => sum + r.count, 0);
-    const total = rows.reduce((sum, r) => sum + r.count, 0);
-    const countEntregues = count("entregue") || entregues;
-    const countConcluidos = count("concluido");
+    const total = pedidosBaseFiltros.length;
     return {
       total,
-      ativos: total - countConcluidos - countEntregues - count("cancelado"),
-      pendentes: count("pendente_distribuicao"),
-      distribuidos: count("distribuido"),
+      ativos,
+      pendentes,
+      distribuidos,
       produzindo_agora: produzindoAgora,
       aguardando_maquina: aguardandoMaquina,
-      concluidos: countConcluidos,
-      entregues: countEntregues,
+      concluidos,
+      entregues,
       atrasados
     };
-  }, [pedidosDaLoja, mapaExecucaoPorId, resumoServidor, lojaSelecionada]);
+  }, [pedidosBaseFiltros, mapaExecucaoPorId]);
 
   const FILTROS = [
     { id: "ativos", label: "Fila Ativa", count: stats.ativos, icon: Zap, color: "text-orange-500" },
@@ -1793,7 +1835,7 @@ export default function CentralPCP() {
   const statsMaterial = useMemo(() => {
     let comMaterial = 0;
     let semMaterial = 0;
-    pedidosDaLoja.forEach(p => {
+    pedidosBaseFiltros.forEach(p => {
       const diag = verificarEstoquePedido(p, estoqueContext);
       if (diag.statusGeral === "ok" || diag.statusGeral === "desbobinar") {
         comMaterial++;
@@ -1802,14 +1844,14 @@ export default function CentralPCP() {
       }
     });
     return { comMaterial, semMaterial };
-  }, [pedidosDaLoja, estoqueContext]);
+  }, [pedidosBaseFiltros, estoqueContext]);
 
-  // Estatísticas de Prioridades e Rotas Logísticas
+  // Estatísticas de Prioridades e Rotas Logísticas (soma bate 100% com stats.total)
   const statsPrioridade = useMemo(() => {
     let retira = 0;
     let rota = 0;
     let alta = 0;
-    pedidosDaLoja.forEach(p => {
+    pedidosBaseFiltros.forEach(p => {
       const isRetira = Boolean(p.cliente_retira_agora || p.cliente_retira || p.prioridade_tipo === "RETIRA_AGORA");
       const isRota = Boolean(p.carga_rota || p.prioridade_tipo === "ROTA");
       const isAlta = Boolean(p.prioridade || (p.prioridade_nivel && Number(p.prioridade_nivel) <= 2));
@@ -1817,27 +1859,34 @@ export default function CentralPCP() {
       if (isRota) rota++;
       if (isAlta) alta++;
     });
-    return { retira, rota, alta, total: pedidosDaLoja.length };
-  }, [pedidosDaLoja]);
+    return { retira, rota, alta, total: pedidosBaseFiltros.length };
+  }, [pedidosBaseFiltros]);
 
-  // Lista consolidada de vendedores com pedidos ativos/totais na filial selecionada
+  // Lista consolidada de vendedores com pedidos na base ativa unificada
   const vendedoresDisponiveis = useMemo(() => {
     const mapa = new Map();
-    pedidosDaLoja.forEach(p => {
+    let semVendedor = 0;
+    pedidosBaseFiltros.forEach(p => {
       const v = (p.vendedor_nome || "").trim();
       if (v) {
         mapa.set(v, (mapa.get(v) || 0) + 1);
+      } else {
+        semVendedor++;
       }
     });
-    return Array.from(mapa.entries())
+    const lista = Array.from(mapa.entries())
       .map(([nome, count]) => ({ nome, count }))
       .sort((a, b) => b.count - a.count);
-  }, [pedidosDaLoja]);
+    if (semVendedor > 0) {
+      lista.push({ nome: "Sem Vendedor Definido", count: semVendedor });
+    }
+    return lista;
+  }, [pedidosBaseFiltros]);
 
   // Mapa de pedidos que contêm ambos os setores (Telhas E Corte & Dobra) no mesmo pedido
   const numerosComAmbosSetores = useMemo(() => {
     const mapa = new Map();
-    pedidosDaLoja.forEach(p => {
+    pedidosBaseFiltros.forEach(p => {
       const num = p.numero_pedido || `AVULSO_${p.id}`;
       if (!mapa.has(num)) mapa.set(num, { temTelha: false, temCD: false });
       const info = mapa.get(num);
@@ -1850,7 +1899,7 @@ export default function CentralPCP() {
       if (v.temTelha && v.temCD) setAmbos.add(num);
     });
     return setAmbos;
-  }, [pedidosDaLoja]);
+  }, [pedidosBaseFiltros]);
 
   // Estatísticas de Setores por OF (Grade Solta)
   const statsSetores = useMemo(() => {
@@ -1858,7 +1907,7 @@ export default function CentralPCP() {
     let cd = 0;
     let frisadas = 0;
     let ambos = 0;
-    pedidosDaLoja.forEach(p => {
+    pedidosBaseFiltros.forEach(p => {
       const g = classGrupo(p);
       const temTelha = (p.itens_telha_count || 0) > 0 || g === "telha";
       const temCD = (p.itens_cd_count || 0) > 0 || g === "cd";
@@ -1868,13 +1917,13 @@ export default function CentralPCP() {
       if (temFrisada) frisadas++;
       if (numerosComAmbosSetores.has(p.numero_pedido || `AVULSO_${p.id}`)) ambos++;
     });
-    return { telhas, cd, frisadas, ambos, total: pedidosDaLoja.length };
-  }, [pedidosDaLoja, numerosComAmbosSetores]);
+    return { telhas, cd, frisadas, ambos, total: pedidosBaseFiltros.length };
+  }, [pedidosBaseFiltros, numerosComAmbosSetores]);
 
   // Estatísticas de Setores por Pedido (Modo Agrupado)
   const statsSetoresAgrupados = useMemo(() => {
     const mapaNums = new Map();
-    pedidosDaLoja.forEach(p => {
+    pedidosBaseFiltros.forEach(p => {
       const num = p.numero_pedido || `AVULSO_${p.id}`;
       if (!mapaNums.has(num)) mapaNums.set(num, []);
       mapaNums.get(num).push(p);
@@ -1896,10 +1945,10 @@ export default function CentralPCP() {
     });
 
     return { telhas, cd, frisadas, ambos, total: mapaNums.size };
-  }, [pedidosDaLoja]);
+  }, [pedidosBaseFiltros]);
 
-  // Filtros + busca
-  const pedidosFiltrados = pedidosDaLoja.filter(p => {
+  // Filtros + busca (agora aplicado sobre pedidosBaseFiltros que já contempla o período selecionado)
+  const pedidosFiltrados = pedidosBaseFiltros.filter(p => {
     const entregue = isPedidoEntregue(p);
     const concluido = isPedidoConcluido(p);
     const diag = mapaExecucaoPorId.get(p.id);
@@ -1936,7 +1985,12 @@ export default function CentralPCP() {
 
     // Filtro por Vendedor
     if (filtroVendedor !== "todos") {
-      if ((p.vendedor_nome || "").trim() !== filtroVendedor) return false;
+      const vNome = (p.vendedor_nome || "").trim();
+      if (filtroVendedor === "Sem Vendedor Definido") {
+        if (vNome) return false;
+      } else if (vNome !== filtroVendedor) {
+        return false;
+      }
     }
 
     // Filtro por Setor Industrial (Telhas / Corte e Dobra / Frisadas / Ambos)

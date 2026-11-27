@@ -9,8 +9,9 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, PackageCheck, Factory, Home, ArrowLeftRight, Sun, Moon, Search, Inbox } from "lucide-react";
+import { ChevronDown, PackageCheck, Factory, Home, ArrowLeftRight, Sun, Moon, Search, Inbox, Sparkles } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
+import { abrirCopilot } from "@/lib/copilotPrefs";
 
 export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar, children }) {
   const navigate = useNavigate();
@@ -133,6 +134,25 @@ export default function EcosystemHeaderBar({ user, sidebarOpen, onToggleSidebar,
           </button>
 
           {children}
+          {/* Botão de Atalho do AJL IA (oculto em tablets/máquinas de chão de fábrica) */}
+          {!location.pathname.includes("/maquina/") &&
+            !location.pathname.startsWith("/maquina") &&
+            !location.pathname.includes("/corte-dobra/maquina") &&
+            location.pathname !== "/producao" &&
+            location.pathname !== "/corte-dobra/producao" &&
+            user?.role !== "operador" &&
+            !user?.maquina && (
+              <button
+                type="button"
+                onClick={abrirCopilot}
+                className="p-2 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 transition-all duration-200 cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                title="Abrir AJL IA Copiloto (ou reativar visibilidade)"
+                aria-label="AJL IA Copiloto"
+              >
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-amber-400" />
+                <span className="hidden xl:inline text-xs font-bold">AJL IA</span>
+              </button>
+            )}
           <NotificationBell user={user} />
           <FilialSwitcher />
 

@@ -24,7 +24,6 @@ import { useTheme } from "@/lib/ThemeContext";
 import UserAvatarButton from "@/components/UserAvatarButton";
 import NotificationBell from "@/components/NotificationBell";
 import GlobalCommandPalette from "@/components/GlobalCommandPalette";
-import AjlCopilot from "@/components/ai/AjlCopilot";
 import ComoInstalarModal from "@/components/pwa/ComoInstalarModal";
 import { cn } from "@/lib/utils";
 
@@ -396,7 +395,6 @@ export default function SeletorSetor() {
       </div>
 
       <GlobalCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
-      <AjlCopilot />
       <ComoInstalarModal open={comoInstalarOpen} onOpenChange={setComoInstalarOpen} />
     </div>
   );

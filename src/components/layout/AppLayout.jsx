@@ -13,7 +13,6 @@ import CentralMensagensDireto from "@/components/chat/CentralMensagensDireto";
 import { useAllUnreadCount, useUnreadCount } from "@/hooks/useUnreadMessages";
 import { playAlertSound } from "@/lib/sounds";
 import { toast } from "sonner";
-import AjlCopilot from "@/components/ai/AjlCopilot";
 import ScrollNavigationFab from "@/components/ui/ScrollNavigationFab";
 
 export default function AppLayout() {
@@ -108,7 +107,6 @@ export default function AppLayout() {
         <CentralChats user={user} open={centralChatsOpen} onOpenChange={setCentralChatsOpen} />
       )}
       <CentralMensagensDireto user={user} open={centralDiretoOpen} onOpenChange={setCentralDiretoOpen} />
-      <AjlCopilot />
       <ScrollNavigationFab />
     </div>
   );

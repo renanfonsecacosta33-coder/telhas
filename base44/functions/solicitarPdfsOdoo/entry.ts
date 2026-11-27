@@ -82,13 +82,18 @@ export default async function(req: Request): Promise<Response> {
       'AJL_ok32kf46ncwo15_PDF'
     ).trim();
 
+    const hostReq = req.headers.get('host') || '6a0467e5d5ff5dda4351d2c3.base44.app';
+    const callbackUrl = `https://${hostReq}/api/functions/receberPdfOdoo`;
+
     const payloadOdoo = {
       request_id: requestId,
       pedidos: pedidosNormalizados,
       token: tokenOdoo,
       timestamp: agora.toISOString(),
       rota_id: rotaId || undefined,
-      rota_titulo: rotaTitulo || undefined
+      rota_titulo: rotaTitulo || undefined,
+      callback_url: callbackUrl,
+      webhook_url: callbackUrl,
     };
 
     if (!odooWebhookUrl) {

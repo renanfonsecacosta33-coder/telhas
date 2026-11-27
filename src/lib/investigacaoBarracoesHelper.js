@@ -318,6 +318,47 @@ export function processarMapaBarracoes({
       item.statusGeralLabel = "⏳ Aguardando Entrada";
       item.statusGeralBadge = "bg-slate-100 text-slate-700 border-slate-300";
     }
+
+    // 6. Apontamento Inteligente de Tablet e Localização Física em Tempo Real (Logística)
+    const todasMaquinas = Array.from(new Set([...item.maquinasTelhas, ...item.maquinasCD])).filter(Boolean);
+    const maqTexto = todasMaquinas.length > 0 ? todasMaquinas.join(", ") : "";
+
+    if (item.statusGeral === "produzindo") {
+      item.tabletLocal = {
+        label: `⚡ No Tablet: ${maqTexto || "Máquinas"} (Produzindo)`,
+        curto: `⚡ Tablet: ${maqTexto || "Produzindo"}`,
+        local: `Chão de Fábrica — Máquina ${maqTexto || "em Produção"}`,
+        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200 animate-pulse font-bold"
+      };
+    } else if (item.statusGeral === "pausado") {
+      item.tabletLocal = {
+        label: `⏸️ No Tablet: ${maqTexto || "Máquinas"} (Pausado)`,
+        curto: `⏸️ Tablet: ${maqTexto || "Pausado"}`,
+        local: `Chão de Fábrica — Máquina ${maqTexto || "Pausado"}`,
+        badgeClass: "bg-orange-100 text-orange-900 border-orange-300 font-bold"
+      };
+    } else if (item.statusGeral === "pronto") {
+      item.tabletLocal = {
+        label: "📦 Pronto no Box da Expedição",
+        curto: "📦 Box Expedição",
+        local: "Box de Expedição / Pátio de Carregamento",
+        badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 font-bold"
+      };
+    } else if (item.statusGeral === "pendente") {
+      item.tabletLocal = {
+        label: maqTexto ? `📱 No Tablet da ${maqTexto} (Fila)` : "📱 No Tablet da Máquina (Fila)",
+        curto: maqTexto ? `📱 Tablet: ${maqTexto}` : "📱 Fila Máquina",
+        local: maqTexto ? `Fila da Máquina: ${maqTexto}` : "Fila da Máquina",
+        badgeClass: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950 dark:text-blue-200 font-bold"
+      };
+    } else {
+      item.tabletLocal = {
+        label: "⏳ Aguardando Entrada no PCP",
+        curto: "⏳ PCP (Aguardando)",
+        local: "Central PCP — Mesa de Planejamento",
+        badgeClass: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 font-medium"
+      };
+    }
   });
 
   // Indexa aliases em chaves secundárias (ex: 29824901 e 298249)

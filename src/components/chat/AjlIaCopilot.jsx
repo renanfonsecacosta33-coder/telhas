@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useFilial } from "@/contexts/FilialContext";
 import {
   Sparkles, Send, X, Maximize2, Minimize2, Settings, RefreshCw,
   FileText, ExternalLink, Bot, Check, AlertCircle, ShieldCheck,
-  Zap, Factory, Package, ArrowRight, CornerDownLeft
+  Zap, Factory, Package, ArrowRight, CornerDownLeft, EyeOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { isCopilotOculto, setCopilotOculto, COPILOT_TOGGLE_EVENT, COPILOT_OPEN_EVENT } from "@/lib/copilotPrefs";
 
 export default function AjlIaCopilot() {
+  const location = useLocation();
+  const [user, setUser] = useState(null);
+  const [oculto, setOculto] = useState(() => isCopilotOculto());
   const [aberto, setAberto] = useState(false);
   const [maximizado, setMaximizado] = useState(false);
   const [mensagens, setMensagens] = useState([
@@ -36,6 +41,27 @@ export default function AjlIaCopilot() {
 
   const { filialAtiva } = useFilial();
   const messagesEndRef = useRef(null);
+
+  // Carrega usuário autenticado para verificar se é operador de máquina
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
+
+  // Sincroniza preferência de ocultar/mostrar com eventos globais
+  useEffect(() => {
+    const handleToggle = () => setOculto(isCopilotOculto());
+    const handleOpen = () => {
+      setOculto(false);
+      setCopilotOculto(false);
+      setAberto(true);
+    };
+    window.addEventListener(COPILOT_TOGGLE_EVENT, handleToggle);
+    window.addEventListener(COPILOT_OPEN_EVENT, handleOpen);
+    return () => {
+      window.removeEventListener(COPILOT_TOGGLE_EVENT, handleToggle);
+      window.removeEventListener(COPILOT_OPEN_EVENT, handleOpen);
+    };
+  }, []);
 
   // Rolagem suave para o fim da conversa
   const scrollParaFim = () => {
@@ -146,24 +172,73 @@ export default function AjlIaCopilot() {
     }
   };
 
+  // 1. REGRA AJL ABSOLUTA: NÃO APARECER EM TABLETS DE PRODUÇÃO / MÁQUINAS
+  const isTelaMaquinaProducao = () => {
+    const p = (location.pathname || "").toLowerCase();
+    return (
+      p.startsWith("/maquina/") ||
+      p.startsWith("/corte-dobra/maquina/") ||
+      p === "/producao" ||
+      p === "/corte-dobra/producao"
+    );
+  };
+
+  const isOperadorTablet = user?.role === "operador" || Boolean(user?.maquina);
+
+  // Se estiver em tablet/máquina de produção, não renderiza absolutamente nada
+  if (isTelaMaquinaProducao() || isOperadorTablet) {
+    return null;
+  }
+
+  // 2. Se o usuário escolheu ocultar o botão da tela e a janela não está aberta
+  if (oculto && !aberto) {
+    return null;
+  }
+
   return (
     <>
       {/* ══════════════ BOTÃO FLUTUANTE AJL IA ══════════════ */}
-      {!aberto && (
-        <button
-          onClick={() => setAberto(true)}
-          className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white px-4 py-3 rounded-full shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20 group"
-          title="Abrir AJL IA - Copiloto de Chão de Fábrica"
-        >
-          <div className="relative">
-            <Sparkles className="w-5 h-5 animate-pulse text-amber-300" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-blue-700" />
-          </div>
-          <span className="font-black text-sm tracking-wide">AJL IA</span>
-          <span className="hidden sm:inline text-xs bg-white/20 px-2 py-0.5 rounded-full font-medium">
-            Copiloto
-          </span>
-        </button>
+      {!aberto && !oculto && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center group shadow-xl rounded-full">
+          <button
+            onClick={() => setAberto(true)}
+            className="flex items-center gap-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white pl-4 pr-3 py-2.5 sm:py-3 rounded-l-full hover:brightness-110 active:scale-95 transition-all duration-200 cursor-pointer border-y border-l border-white/20"
+            title="Abrir AJL IA - Copiloto de Chão de Fábrica"
+          >
+            <div className="relative">
+              <Sparkles className="w-5 h-5 animate-pulse text-amber-300" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-blue-700" />
+            </div>
+            <span className="font-black text-sm tracking-wide">AJL IA</span>
+            <span className="hidden sm:inline text-xs bg-white/20 px-2 py-0.5 rounded-full font-medium">
+              Copiloto
+            </span>
+          </button>
+          {/* Botão de Fechar / Ocultar a IA para não atrapalhar */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCopilotOculto(true);
+              setOculto(true);
+              toast.info("AJL IA ocultado da tela. Para reativá-lo, clique no ícone do robô no menu superior ou em Configurações.", {
+                duration: 5000,
+                action: {
+                  label: "Desfazer",
+                  onClick: () => {
+                    setCopilotOculto(false);
+                    setOculto(false);
+                  }
+                }
+              });
+            }}
+            className="p-3 rounded-r-full bg-blue-700 hover:bg-red-600 text-white/80 hover:text-white transition-all cursor-pointer border-y border-r border-white/20 border-l border-white/10"
+            title="Ocultar botão da IA da tela para não atrapalhar o uso"
+            aria-label="Ocultar IA"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
       {/* ══════════════ JANELA / PAINEL COPILOT AJL IA ══════════════ */}
@@ -195,6 +270,18 @@ export default function AjlIaCopilot() {
             </div>
 
             <div className="flex items-center gap-1 text-slate-300">
+              <button
+                onClick={() => {
+                  setAberto(false);
+                  setCopilotOculto(true);
+                  setOculto(true);
+                  toast.info("AJL IA ocultado da tela. Você pode reativá-lo no menu superior.");
+                }}
+                className="p-1.5 rounded-lg hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                title="Ocultar botão da IA da tela"
+              >
+                <EyeOff className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => setConfigOpen(true)}
                 className="p-1.5 rounded-lg hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
