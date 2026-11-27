@@ -64,6 +64,8 @@ export async function parseRotaImage(imageUrl, filialAtiva = null) {
     prompt: PROMPT,
     file_urls: [imageUrl],
     response_json_schema: SCHEMA,
+    // Modelo de visão rápido: leitura do manifesto em poucos segundos.
+    model: "gemini_3_flash",
   });
 
   const rawItens = res.itens || [];
@@ -169,4 +171,4 @@ export async function parseRotaImage(imageUrl, filialAtiva = null) {
     motorista_nome: motoristaNome,
     itens,
   };
-}
+}

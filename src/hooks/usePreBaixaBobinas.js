@@ -404,8 +404,9 @@ export function usePreBaixaBobinas(setor, filiais = null) {
       const totalPreBaixaMetros = Object.values(preBaixaMetrosMap).reduce((s, m) => s + m, 0);
       return { preBaixaMap, preBaixaMetrosMap, preBaixaOpsMap, statusMap, totalPreBaixaKg, totalPreBaixaMetros };
     },
-    staleTime: 30000,
-    refetchInterval: 60000,
+    staleTime: 120000,
+    refetchInterval: 180000,
+    refetchIntervalInBackground: false,
   });
 
   const preBaixaMap = data.preBaixaMap || EMPTY_MAP;

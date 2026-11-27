@@ -4,7 +4,7 @@ import { avancarProximaEtapaRoteiroCD } from "@/lib/roteamentoCorteDobraHelper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight, Calendar, Factory, Layers, AlertTriangle, Search, X, Star, Ban, Trash2, History, FileText, GitBranch, RefreshCw } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, CheckCircle2, Calendar, Factory, Layers, AlertTriangle, Search, X, Ban, History, FileText, GitBranch, RefreshCw } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -20,9 +20,7 @@ import ChatFloatingButton from "@/components/chat/ChatFloatingButton";
 import MonitorOciosidadeMaquina from "@/components/maquinas/MonitorOciosidadeMaquina";
 import TimerProducao from "@/components/producao/TimerProducao";
 import {
-  getPesoOrdenacaoPrioridade,
   SeletorPrioridadeDropdown,
-  compararPrioridadeEData,
   normalizarPrioridadeNivelNumerico,
   pertenceAFilaDaMaquinaNoDia,
   compararFilaMaquinaAJL,
@@ -36,6 +34,7 @@ import GuiaOperacionalModal from "@/components/pops/GuiaOperacionalModal";
 import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelamentoPcpBanner";
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
+import { validarTransicaoStatus, finalizacaoJaProcessada } from "@/lib/travaStatusDefinitivo";
 
 export function getMaquinaOrdemDesb(ordem) {
   if (!ordem) return "DESBOBINADEIRA 01";
@@ -63,6 +62,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false);
   const [modalHistoricoTab, setModalHistoricoTab] = useState("relatorio");
   const [guiaModalOpen, setGuiaModalOpen] = useState(false);
+  const [finalizadosAbertos, setFinalizadosAbertos] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -284,9 +284,9 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
     // - Em produção ou pausados
     // - Finalizados hoje
     return ordens
-      .filter(o => o.status !== "aguardando_material" && pertenceAFilaDaMaquinaNoDia(o, selectedDay, maquinaSelecionada, (item) => item.status === "finalizado"))
+      .filter(o => o.status !== "aguardando_material" && pertenceAFilaDaMaquinaNoDia(o, selectedDay, maquinaAtiva, (item) => item.status === "finalizado"))
       .sort((a, b) => compararFilaMaquinaAJL(a, b, selectedDay));
-  }, [ordens, selectedDay, buscaPedido, maquinaSelecionada]);
+  }, [ordens, selectedDay, buscaPedido, maquinaAtiva]);
 
   const ordensCanceladasDesb = useMemo(
     () => ordens.filter(o => o.status === "cancelado"),
@@ -309,17 +309,26 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
   const updateOrdem = useMutation({
     mutationFn: async ({ id, data }) => {
       const payloadLimpo = { ...data };
+      const anterior = todasOrdens.find(o => o.id === id) || null;
+      // 🔒 TRAVA DEFINITIVA: OP finalizada é terminal. Não volta para a máquina,
+      // não muda de etapa e não é reprocessada por nenhuma ação da tela.
+      validarTransicaoStatus(anterior, payloadLimpo);
       if (typeof payloadLimpo.prioridade_nivel === "string") {
         payloadLimpo.prioridade_nivel = normalizarPrioridadeNivelNumerico(payloadLimpo.prioridade_nivel, payloadLimpo.tipo_prioridade);
       }
       const res = await base44.entities.OrdemDesbobinadeira.update(id, payloadLimpo);
-      // Se a ordem foi finalizada, aciona a criação de ChapaCD e o desconto na Bobina em segundo plano (não bloqueia a UI)
-      if (data?.status === "finalizado") {
+      // Se a ordem foi finalizada AGORA, aciona a criação de ChapaCD e o desconto na Bobina
+      // em segundo plano. Reedições de uma OP já finalizada não repetem a baixa.
+      if (data?.status === "finalizado" && !finalizacaoJaProcessada(anterior, data)) {
         avancarProximaEtapaRoteiroCD(res, "OrdemDesbobinadeira").then((avanco) => {
           if (avanco?.avancou && avanco.proximaMaquina) {
             toast.success(`OP avançada automaticamente para ${avanco.proximaMaquina}!`);
           } else if (avanco?.concluido) {
             toast.success("🎉 Roteiro de Corte & Dobra concluído em 100%!");
+          } else if (avanco?.jaExistia) {
+            toast.info(`Esta OP já está na fila da ${avanco.proximaMaquina}.`);
+          } else if (avanco?.semRoteiro) {
+            toast.warning("OP finalizada. Roteiro não definido pelo PCP: avise o PCP para liberar a próxima etapa.");
           }
           queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
           queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
@@ -543,6 +552,17 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
     }
     return r;
   }, [ordensDia, filtroEspessura, filtroChapa, filtroTipo, filtroCor]);
+
+  // Fila ativa x finalizadas do dia: a OP finalizada sai da fila da máquina
+  // imediatamente e fica apenas no bloco recolhido "Finalizadas do Dia".
+  const ordensAtivasDia = useMemo(
+    () => ordensDiaFiltradas.filter(o => o.status !== "finalizado"),
+    [ordensDiaFiltradas]
+  );
+  const ordensFinalizadasDia = useMemo(
+    () => ordensDiaFiltradas.filter(o => o.status === "finalizado"),
+    [ordensDiaFiltradas]
+  );
 
   const ordensSemanaFiltradas = useMemo(() => {
     let r = ordensSemana;
@@ -989,7 +1009,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
               <span className="font-bold capitalize text-sm">
                 {format(new Date(selectedDay + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
               </span>
-              <Badge variant="outline" className="text-xs">{ordensDiaFiltradas.length} ordens</Badge>
+              <Badge variant="outline" className="text-xs">{ordensAtivasDia.length} ordens</Badge>
             </div>
             {isGestor && (
               <Button variant="ghost" size="sm" onClick={() => openNew(selectedDay)} className="h-7 gap-1 text-xs">
@@ -997,7 +1017,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
               </Button>
             )}
           </div>
-          {ordensDiaFiltradas.length === 0 ? (
+          {ordensAtivasDia.length === 0 && ordensFinalizadasDia.length === 0 ? (
             <div className="px-4 py-12 flex flex-col items-center gap-3">
               <Factory className="w-10 h-10 text-muted-foreground/20" />
               <p className="text-sm text-muted-foreground">Nenhuma ordem para este dia</p>
@@ -1009,7 +1029,7 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
             </div>
           ) : (
             <div className="p-4 space-y-3">
-              {ordensDiaFiltradas.map(o => (
+              {ordensAtivasDia.map(o => (
                 <div key={o.id}>
                   {/* Badge de Destaque da Categoria do Dia (Retira, Atrasado, Hoje, D+1, Sem Data) */}
                   <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
@@ -1081,6 +1101,43 @@ export default function Desbobinadeira({ maquinaPadrao = "DESBOBINADEIRA 01" }) 
                   )}
                 </div>
               ))}
+
+              {/* Finalizadas do Dia — saíram da fila ativa, ficam recolhidas aqui */}
+              {ordensFinalizadasDia.length > 0 && (
+                <div className="mt-8 pt-4 border-t-2 border-dashed border-green-300 dark:border-green-900">
+                  <button
+                    type="button"
+                    onClick={() => setFinalizadosAbertos(v => !v)}
+                    className="flex items-center gap-2 mb-3 text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Finalizadas do Dia ({ordensFinalizadasDia.length})
+                    {finalizadosAbertos ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                  {finalizadosAbertos && (
+                    <div className="space-y-3">
+                      {ordensFinalizadasDia.map(o => (
+                        <div key={o.id} className="opacity-80">
+                          <OrdemDesbobinadiraRow
+                            ordem={o}
+                            onUpdate={(id, data) => updateOrdem.mutate({ id, data })}
+                            onDelete={(id) => deleteOrdem.mutate(id)}
+                            isGestor={isGestor}
+                            ordens={ordens}
+                            pedidoSeq={pedidoSeqMap[o.id]}
+                            bobinaCustoMap={bobinaCustoMap}
+                            bobinas={todasBobinas}
+                            pedidosOdooMap={pedidosOdooMap}
+                            user={user}
+                            chapaVinculada={chapaMapPorOrdem[o.id]}
+                            onGerarChapa={handleGerarChapaManual}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Seção das Ordens Canceladas no Dia Selecionado */}
               {ordensDiaCanceladas.length > 0 && (

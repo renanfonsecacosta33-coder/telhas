@@ -13,6 +13,7 @@ import {
   Truck, Zap, Sparkles, ArrowRightLeft
 } from "lucide-react";
 import { registrarAuditoria } from "@/lib/auditHelper";
+import SenhaGestorDialog from "@/components/pcp/SenhaGestorDialog";
 import UploadButton from "@/components/ui/UploadButton";
 import { format } from "date-fns";
 import { formatarDataSegura } from "@/lib/formatData";
@@ -139,11 +140,15 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
   const [operadoresDialogOpen, setOperadoresDialogOpen] = useState(false);
   const [confirmarExclusaoOpen, setConfirmarExclusaoOpen] = useState(false);
   const [confirmarCancelarOpen, setConfirmarCancelarOpen] = useState(false);
+  // 🔒 Reabertura de OP finalizada exige PIN do gestor (finalizado é definitivo)
+  const [reaberturaSolicitada, setReaberturaSolicitada] = useState(null);
 
   const queryClient = useQueryClient();
   const [transferirMaquinaOpen, setTransferirMaquinaOpen] = useState(false);
   const [novaMaquinaDestino, setNovaMaquinaDestino] = useState("");
   const [salvandoTransferencia, setSalvandoTransferencia] = useState(false);
+  // Trava de finalização: garante que a OP só é finalizada (e avançada) uma vez
+  const finalizandoRef = useRef(false);
 
   const opcoesMaquinasTransferencia = useMemo(() => {
     return maquinasCDPorFilial(o.unidade);
@@ -463,6 +468,11 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
   };
 
   const finalizarOrdem = async (fotoUrl, prodSeg, modBlankVal, modDescVal) => {
+    // 🛡️ TRAVA: finaliza uma única vez. Segundo clique (ou refetch que repete a
+    // finalização) não pode criar outra OP na próxima máquina.
+    if (finalizandoRef.current || o.status === "finalizado") return;
+    finalizandoRef.current = true;
+
     onUpdate(o.id, {
       status: "finalizado",
       foto_finalizacao_url: fotoUrl,
@@ -483,6 +493,10 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
         toast.success(`OP encaminhada automaticamente para a próxima máquina: ${res.proximaMaquina}!`);
       } else if (res?.concluido) {
         toast.success("🎉 Roteiro de Corte & Dobra finalizado com sucesso!");
+      } else if (res?.jaExistia) {
+        toast.info(`Esta OP já está na fila da ${res.proximaMaquina}.`);
+      } else if (res?.semRoteiro) {
+        toast.warning("OP finalizada. Roteiro não definido pelo PCP: avise o PCP para liberar a próxima etapa.");
       }
       queryClient.invalidateQueries({ queryKey: ["pedidos-odoo-pcp"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-producao-todos"] });
@@ -528,6 +542,8 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
         console.error("[OrdemMaquinaRow] erro ao finalizar Mini BI:", e?.message || e);
       }
     }
+
+    finalizandoRef.current = false;
   };
 
   const confirmarModificacao = async () => {
@@ -542,6 +558,23 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
   const showCronometro = o.status === "em_producao" || o.status === "pausado" || tempoProd > 0;
   const borderColor = MAQUINA_BORDER[o.maquina] || "border-l-gray-400";
   const isFinalizado = o.status === "finalizado";
+
+  // 🔒 FINALIZADO É DEFINITIVO: reabrir só com liberação do gestor (PIN).
+  const pedirReabertura = (extra = {}, fecharDetalhes = false) =>
+    setReaberturaSolicitada({ extra, fecharDetalhes });
+
+  const confirmarReabertura = () => {
+    const alvo = reaberturaSolicitada;
+    if (!alvo) return;
+    onUpdate(
+      o.id,
+      { status: "pendente", inicio_producao_ts: null, ...alvo.extra },
+      { reaberturaAutorizada: true }
+    );
+    toast.success(`OP #${o.numero_pedido || ""} reaberta pelo gestor.`);
+    if (alvo.fecharDetalhes) setModalDetalhesOpen(false);
+    setReaberturaSolicitada(null);
+  };
 
   if (isFinalizado) {
     const etpCorFin = o.is_retrabalho ? getEtapaColor(o.retrabalho_etapa) : null;
@@ -721,10 +754,7 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
                       size="sm"
                       variant="outline"
                       className="h-8 px-2.5 text-xs gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
-                      onClick={() => {
-                        onUpdate(o.id, { status: "pendente", inicio_producao_ts: null, foto_finalizacao_url: null, data_finalizacao: null });
-                        setModalDetalhesOpen(false);
-                      }}
+                      onClick={() => pedirReabertura({ foto_finalizacao_url: null, data_finalizacao: null }, true)}
                     >
                       ↩ Reabrir Ordem
                     </Button>
@@ -756,6 +786,17 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* 🔒 Trava de reabertura: OP finalizada só volta com PIN do gestor */}
+        <SenhaGestorDialog
+          open={!!reaberturaSolicitada}
+          onOpenChange={(v) => { if (!v) setReaberturaSolicitada(null); }}
+          titulo="🔒 Reabrir OP finalizada"
+          descricao={`A OP #${o.numero_pedido || ""} já está finalizada nesta máquina. Reabrir devolve a OP para a fila e permite reprocessar a etapa.`}
+          aviso="Finalizado é definitivo. Digite o PIN do gestor para autorizar a reabertura."
+          erroTexto="PIN incorreto. Reabertura bloqueada."
+          onAutorizado={confirmarReabertura}
+        />
       </>
     );
   }
@@ -994,7 +1035,7 @@ function OrdemMaquinaRow({ ordem: o, onUpdate, onDelete, isGestor, zoom = "norma
           )}
           {isGestor && o.status === "finalizado" && (
             <Button size="sm" variant="outline" className={`gap-1 ${z.btn} text-slate-500`}
-              onClick={() => onUpdate(o.id, { status: "pendente", inicio_producao_ts: null })}>
+              onClick={() => pedirReabertura()}>
               ↩ Reabrir
             </Button>
           )}

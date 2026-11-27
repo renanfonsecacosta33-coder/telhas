@@ -37,6 +37,7 @@ import AlertaCancelamentoPcpBanner from "@/components/maquinas/AlertaCancelament
 import StatusRedeBadge from "@/components/common/StatusRedeBadge";
 import { normalizarNumeroPedido } from "@/lib/normalizacaoPedidoHelper";
 import { ehMesmaMaquinaCD } from "@/lib/roteamentoCorteDobraHelper";
+import { validarTransicaoStatus } from "@/lib/travaStatusDefinitivo";
 
 export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   const { filialAtiva } = useFilial();
@@ -327,11 +328,14 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
   }, [ordensCanceladasDaMaquina, selectedDay, buscaPedido]);
 
   const updateMaq = useMutation({
-    mutationFn: async ({ id, data }) => {
+    mutationFn: async ({ id, data, reaberturaAutorizada = false }) => {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         throw new Error("OFFLINE_TRIGGERED");
       }
       const payloadLimpo = { ...data };
+      // 🔒 TRAVA DEFINITIVA: OP finalizada é terminal. Não volta para a máquina,
+      // não muda de etapa e não é reprocessada por nenhuma ação da tela.
+      validarTransicaoStatus(ordensDaMaquina.find(o => o.id === id) || null, payloadLimpo, { reaberturaAutorizada });
       if (typeof payloadLimpo.prioridade_nivel === "string") {
         payloadLimpo.prioridade_nivel = normalizarPrioridadeNivelNumerico(payloadLimpo.prioridade_nivel, payloadLimpo.tipo_prioridade);
       }
@@ -700,7 +704,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
         )}
         <OrdemMaquinaRow
           ordem={o}
-          onUpdate={(id, data) => updateMaq.mutate({ id, data })}
+          onUpdate={(id, data, opts) => updateMaq.mutate({ id, data, ...(opts || {}) })}
           onDelete={(id) => deleteMaq.mutate(id)}
           isGestor={isGestor}
           ordens={todasOrdensDaMaquina}
@@ -1072,7 +1076,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                 <div key={o.id} className="opacity-95">
                   <OrdemMaquinaRow
                     ordem={o}
-                    onUpdate={(id, data) => updateMaq.mutate({ id, data })}
+                    onUpdate={(id, data, opts) => updateMaq.mutate({ id, data, ...(opts || {}) })}
                     onDelete={(id) => deleteMaq.mutate(id)}
                     isGestor={isGestor}
                     ordens={todasOrdensDaMaquina}
@@ -1140,7 +1144,7 @@ export default function MaquinaCDPanel({ maquinaId, maquinaLabel, cor }) {
                       <div key={o.id} className="opacity-90">
                         <OrdemMaquinaRow
                           ordem={o}
-                          onUpdate={(id, data) => updateMaq.mutate({ id, data })}
+                          onUpdate={(id, data, opts) => updateMaq.mutate({ id, data, ...(opts || {}) })}
                           onDelete={(id) => deleteMaq.mutate(id)}
                           isGestor={isGestor}
                           ordens={todasOrdensDaMaquina}

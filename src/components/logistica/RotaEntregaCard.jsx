@@ -142,25 +142,26 @@ export default function RotaEntregaCard({ rota, departamento, allowDelete = fals
       });
       const res = rawRes?.data || rawRes;
       if (res?.success) {
-        toast.success(
-          `✅ Deu boa no envio! Solicitação aceita pelo Odoo (ID: ${res.request_id}). Aguardando recebimento dos ${listaPedidos.length} PDFs...`,
-          { id: "puxar-pdfs", duration: 6000 }
-        );
+        const naoLocalizados = (res.falhas || []).map((f) => f.pedido);
+        if (naoLocalizados.length > 0) {
+          toast.warning(
+            `${res.enviados} de ${res.total_pedidos} PDFs solicitados. O Odoo não localizou: ${naoLocalizados.join(", ")}.`,
+            { id: "puxar-pdfs", duration: 9000 }
+          );
+        } else {
+          toast.success(
+            res.ja_disponiveis ? res.message : `${res.enviados || res.total_pedidos} PDFs solicitados ao Odoo. Eles aparecem aqui conforme chegam.`,
+            { id: "puxar-pdfs", duration: 6000 }
+          );
+        }
 
-        // Monitoramento ativo em tempo real: atualiza a cada 3 segundos durante 21 segundos
-        let ciclo = 0;
-        const interval = setInterval(() => {
-          ciclo++;
-          queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
-          queryClient.invalidateQueries({ queryKey: ["pedidos-odoo"] });
-          if (ciclo >= 7) {
-            clearInterval(interval);
-          }
-        }, 3000);
+        // O recebimento continua sendo acompanhado pela assinatura da rota,
+        // sem encerrar após 21 segundos nem recarregar todo o PCP a cada PDF.
+        queryClient.invalidateQueries({ queryKey: ["rotas-entrega"] });
       } else if (res?.status_odoo) {
         toast.error(
-          `❌ Não deu boa com o Odoo (Status ${res.status_odoo}): O webhook do Odoo deu erro. Peça ao Guilherme para salvar a URL do Base44 no Odoo.`,
-          { id: "puxar-pdfs", duration: 8000 }
+          res.message || `O Odoo recusou a solicitação (status ${res.status_odoo}). Nenhum PDF foi gerado.`,
+          { id: "puxar-pdfs", duration: 9000 }
         );
       } else if (res?.config_pendente) {
         toast.info(res.message || "Aguardando URL do webhook fornecida pela equipe do Odoo.", { id: "puxar-pdfs" });

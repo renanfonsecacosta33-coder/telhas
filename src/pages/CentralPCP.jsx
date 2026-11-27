@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target, Truck, Lock, FileDown } from "lucide-react";
+import { Inbox, Radio, Search, ArrowLeft, RefreshCw, Zap, Send, Factory, Layers, AlertTriangle, CheckCircle2, Clock, Trash2, ArrowRightLeft, User, Briefcase, Hash, Package, Target, Truck, Lock, FileDown } from "lucide-react";
 import { exportarRelatorioEntregasCSV } from "@/lib/relatorioEntregasHelper";
 import { executarExclusaoOsBackground } from "@/lib/excluirOsHelper"; import { sincronizarLoteOdoo } from "@/lib/sincronizarOdooHelper";
 import { finalizarOpsDoPedido, cancelarOpsDoPedido, executarVarreduraEConciliacaoGeral, cancelarOpsDasOfsExatas, comRetryLimite } from "@/lib/conciliacaoPcpMaquinasHelper";
@@ -45,7 +45,7 @@ import {
 import useDistribuicaoPcp from "@/hooks/useDistribuicaoPcp"; import useProgramacaoPcp from "@/hooks/useProgramacaoPcp";
 import useFilaPaginada from "@/hooks/useFilaPaginada";
 import FilaPagination from "@/components/pcp/FilaPagination";
-import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp";
+import { montarConsultaPcp, buscarOpsDasOfs } from "@/lib/consultaFilaPcp"; import useFecharProduzidosPcp from "@/hooks/useFecharProduzidosPcp"; import useReconciliarDistribuicaoPcp from "@/hooks/useReconciliarDistribuicaoPcp";
 import { getPesoOrdenacaoPrioridade, formatarDataProgramadaAmigavel, hasPrioridadeDefinida, montarUpdatesPrioridade, normalizarPrioridadeNivelNumerico } from "@/lib/prioridadeHelper";
 import ModalPrioridadeObrigatoria from "@/components/pcp/ModalPrioridadeObrigatoria";
 import { verificarEstoquePedido } from "@/lib/estoqueMaterialHelper";
@@ -435,7 +435,7 @@ export default function CentralPCP() {
     refetchOnWindowFocus: false
   });
 
-  useFecharProduzidosPcp({ pedidos, pedidosProducao, ordensCD, queryKey: filaPcp.queryKey });
+  useFecharProduzidosPcp({ pedidos, pedidosProducao, ordensCD, queryKey: filaPcp.queryKey }); useReconciliarDistribuicaoPcp({ pedidos, pedidosProducao, ordensCD, queryKey: filaPcp.queryKey });
   // Consultas de Matéria-Prima em Tempo Real para Análise de Disponibilidade no PCP
   const { data: bobinasEstoque = EMPTY_LIST } = useQuery({
     queryKey: ["bobinas-estoque-pcp"],
@@ -456,10 +456,10 @@ export default function CentralPCP() {
       }
     },
     placeholderData: (prev) => prev,
-    staleTime: 45000,
+    staleTime: 120000,
     gcTime: 1000 * 60 * 60 * 24,
-    retry: 3,
-    refetchInterval: 60000
+    retry: false,
+    refetchInterval: 180000, refetchIntervalInBackground: false
   });
 
   const { data: chapasEstoque = EMPTY_LIST } = useQuery({
@@ -481,10 +481,10 @@ export default function CentralPCP() {
       }
     },
     placeholderData: (prev) => prev,
-    staleTime: 45000,
+    staleTime: 120000,
     gcTime: 1000 * 60 * 60 * 24,
-    retry: 3,
-    refetchInterval: 60000
+    retry: false,
+    refetchInterval: 180000, refetchIntervalInBackground: false
   });
 
   // Pré-baixas acumuladas em tempo real de todas as OPs ativas (Telhas + Corte e Dobra)
@@ -1964,7 +1964,7 @@ export default function CentralPCP() {
     } else if (filtro === "aguardando_maquina") {
       if (concluido || entregue || !diag?.aguardandoInicio) return false;
     } else if (filtro === "pendente_distribuicao") {
-      if (concluido || entregue || p.status_pcp !== "pendente_distribuicao") return false;
+      if (concluido || entregue || p.status_pcp !== "pendente_distribuicao" || (diag && diag.statusChave !== "pendente_distribuicao")) return false;
     } else if (filtro === "distribuido") {
       if (concluido || entregue || p.status_pcp !== "distribuido") return false;
     } else if (filtro === "em_producao") {
@@ -3172,7 +3172,7 @@ export default function CentralPCP() {
       <PcpDeferredDialogs dialogs={{
         detalhe: {
           pedido: pedidoSelecionado,
-          progressoReal: detalheOpen && pedidoSelecionado ? calcularProgressoRealPedido(pedidoSelecionado, pedidosProducao, ordensCD) : null,
+          progressoReal: detalheOpen && pedidoSelecionado ? calcularProgressoRealPedido(pedidoSelecionado, pedidosProducao, ordensCD) : null, pedidosProducao, ordensCD,
           open: detalheOpen, onOpenChange: setDetalheOpen,
           onDistribuir: iniciarDistribuicaoComRoteamento, distribuindo,
           onExcluirOS: handleExcluirOS, onRetirarFila: handleRetirarFila, onDevolverPCP: handleDevolverPCP,

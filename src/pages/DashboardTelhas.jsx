@@ -22,6 +22,7 @@ import PedidoFormDialog from "@/components/producao/PedidoFormDialog";
 import QuickActionDialogTelhas from "@/components/telhas/QuickActionDialogTelhas";
 import HistoricoBobinasTelhas from "@/components/telhas/HistoricoBobinasTelhas";
 import KpiDetailSidebarTelhas from "@/components/telhas/KpiDetailSidebarTelhas";
+import MetrosAColarCard from "@/components/telhas/MetrosAColarCard";
 import AjustarMetragensModal from "@/components/telhas/AjustarMetragensModal";
 import { calcularMetrosPedido, calcularKgPedido } from "@/lib/metrosHelper";
 import { calcularCustoOrdem } from "@/lib/custoPedidoHelper";
@@ -654,6 +655,9 @@ export default function DashboardTelhas() {
       {/* ══════════════ ABA PRODUÇÃO (PRINCIPAL) ══════════════ */}
       {aba === "producao" && (
         <>
+          {/* Metros que ainda faltam colar (EPS e Bandeja) */}
+          <MetrosAColarCard pedidos={pedidosFiltrados} pedidosOdoo={odooFiltrados} />
+
           {/* 1. KPIS PRINCIPAIS (HERO GRID) */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Metros no Período */}

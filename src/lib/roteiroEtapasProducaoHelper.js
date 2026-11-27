@@ -563,6 +563,9 @@ export async function processarConclusaoEtapas({
 
         if (opsCDVivas.length > 0) {
           for (const op of opsCDVivas) {
+            // 🔒 OP já em produção ou pausada não é movida de máquina nem volta para
+            // "pendente": isso reprocessaria uma etapa que já está rodando.
+            if (op.status === "em_producao" || op.status === "pausado") continue;
             await base44.entities.OrdemMaquinaCD.update(op.id, {
               maquina: maquinaCanonica,
               status: "pendente",
@@ -586,7 +589,15 @@ export async function processarConclusaoEtapas({
         }
       } else {
         // Telhas:
-        const opsTelhas = await base44.entities.Pedido.filter({ numero_pedido: pedido.numero_pedido });
+        // Busca a OP em ambos os formatos do número e também pelo vínculo da OF:
+        // deixar de encontrar a OP existente era o que gerava uma segunda OP igual.
+        const numPedTelha = String(pedido.numero_pedido || "").replace(/^#/, "").trim();
+        let opsTelhas = await base44.entities.Pedido.filter({
+          numero_pedido: { $in: [numPedTelha, `#${numPedTelha}`] }
+        }).catch(() => []);
+        if ((!opsTelhas || opsTelhas.length === 0) && pedido.id) {
+          opsTelhas = await base44.entities.Pedido.filter({ pedido_odoo_id: pedido.id }).catch(() => []);
+        }
 
         if (opsTelhas && opsTelhas.length > 0) {
           for (const op of opsTelhas) {
@@ -611,7 +622,9 @@ export async function processarConclusaoEtapas({
             }
           }
         } else {
-          // Se ainda não existia OP criada na máquina, cria a OP na máquina de destino
+          // Se ainda não existia OP criada na máquina, cria a OP na máquina de destino.
+          // O vínculo da OF e do item vai SEMPRE gravado: é o que permite as travas
+          // anti-duplicação reconhecerem esta OP e nunca criarem uma segunda igual.
           await base44.entities.Pedido.create({
             numero_pedido: pedido.numero_pedido,
             cliente: pedido.cliente_nome || "Cliente",
@@ -625,7 +638,12 @@ export async function processarConclusaoEtapas({
             perfilacao_concluida: true,
             data: todayIso,
             data_entrega: pedido.data_entrega || todayIso,
-            unidade: pedido.unidade || "Matriz AJL"
+            unidade: pedido.unidade || "Matriz AJL",
+            pedido_odoo_id: pedido.id || null,
+            of_odoo_id: pedido.of_odoo_id || null,
+            of_nome: pedido.of_nome || null,
+            item_idx: item?._idx != null ? Number(item._idx) : null,
+            item_produto: item?.produto || null
           });
         }
       }

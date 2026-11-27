@@ -79,6 +79,17 @@ export default function RotasEntregaSection({
     refetchOnWindowFocus: false,
   });
 
+  // Aplica o documento recebido diretamente na rota em tela, sem polling
+  // por pedido e sem prazo de 21s para deixar de acompanhar os PDFs.
+  useEffect(() => base44.entities.RotaEntrega.subscribe((evento) => {
+    if (evento.type !== "update" || !evento.data?.itens_json) return;
+    queryClient.setQueriesData({ queryKey: ["rotas-entrega"] }, (lista) =>
+      Array.isArray(lista)
+        ? lista.map(rota => rota.id === evento.id ? { ...rota, ...evento.data } : rota)
+        : lista
+    );
+  }), [queryClient]);
+
   // Arquiva automaticamente rotas cuja data de ENTREGA já passou (no dia seguinte)
   const arquivarExpiradas = useCallback(async (lista) => {
     const expiradas = lista.filter((r) => r.status !== "expedido" && r.status !== "cancelado" && isRotaExpirada(r));
