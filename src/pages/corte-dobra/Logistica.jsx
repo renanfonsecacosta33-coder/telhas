@@ -40,9 +40,10 @@ export default function Logistica({ mode = "montagem", defaultTab = "todos" }) {
     }
   }, [defaultTab]);
 
-  // Função auxiliar para extrair a data em que a carga foi colocada (data_criacao / created_date)
+  // Função auxiliar para extrair a data em que a carga foi colocada no sistema (estritamente created_date automático do Base44 ou data_criacao)
+  // NUNCA usa data_entrega ou entrega_date (que são datas antigas impressas no papel lidas pelo OCR)
   const extrairDataColocacaoCarga = (r) => {
-    let d = r.data_criacao || r.created_date || r.data_entrega || r.entrega_date || "";
+    let d = r.created_date || r.data_criacao || "";
     if (!d) return "";
     if (d.includes("T")) {
       d = d.split("T")[0];
