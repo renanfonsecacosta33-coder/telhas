@@ -7,43 +7,8 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import RotaEntregaCard from "@/components/logistica/RotaEntregaCard";
-
-const MESES_PT = { jan:0, fev:1, mar:2, abr:3, mai:4, jun:5, jul:6, ago:7, set:8, out:9, nov:10, dez:11 };
-function parseEntregaDate(str) {
-  if (!str) return null;
-  const s = String(str).trim().toLowerCase();
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
-  m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
-  if (m) {
-    const ano = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : new Date().getFullYear();
-    return new Date(ano, +m[2]-1, +m[1]);
-  }
-  m = s.match(/^(\d{1,2})\/([a-zç]{3})/);
-  if (m) {
-    const mes = MESES_PT[m[2]];
-    if (mes === undefined) return null;
-    return new Date(new Date().getFullYear(), mes, +m[1]);
-  }
-  m = s.match(/^(\d{1,2})\s+de\s+([a-zç]{3,})/);
-  if (m) {
-    const mes = MESES_PT[m[2].substring(0,3)];
-    if (mes === undefined) return null;
-    return new Date(new Date().getFullYear(), mes, +m[1]);
-  }
-  return null;
-}
-function isRotaExpirada(rota) {
-  const d = parseEntregaDate(rota.entrega_date);
-  if (!d) return false;
-  const entrega = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const hoje = new Date();
-  const hojeMid = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-  const diaSeguinte = new Date(entrega);
-  diaSeguinte.setDate(diaSeguinte.getDate() + 1);
-  return hojeMid >= diaSeguinte;
-}
+import RotasCarrossel from "@/components/logistica/RotasCarrossel";
+import { isRotaExpirada, filtrarRotas } from "@/lib/rotaDataHelper";
 
 /**
  * Seção reutilizável que exibe as Rotas de Entrega distribuídas pela IA.
@@ -54,6 +19,7 @@ function isRotaExpirada(rota) {
  * - filialAtiva: unidade atual
  * - title: título opcional da seção
  * - compact: se true, limita a 3 cards
+ * - busca / statusFiltro / somenteSemFoto: filtros aplicados pela página
  */
 export default function RotasEntregaSection({
   departamento,
@@ -61,8 +27,11 @@ export default function RotasEntregaSection({
   title,
   compact = false,
   allowDelete = false,
-  dataSelecionada = null, // "YYYY-MM-DD" ou null
-  onLimparFiltroData = null
+  dataSelecionada = null,
+  onLimparFiltroData = null,
+  busca = "",
+  statusFiltro = "todas",
+  somenteSemFoto = false,
 }) {
   const queryClient = useQueryClient();
   const { data: rotas = [], isLoading } = useQuery({
@@ -106,38 +75,15 @@ export default function RotasEntregaSection({
   }, [rotas, arquivarExpiradas]);
 
   const rotasFiltradas = useMemo(() => {
-    let result = rotas.filter((r) => r.status !== "expedido");
-
-    // Filtro por data selecionada no calendário
-    if (dataSelecionada) {
-      result = result.filter((r) => {
-        const d = parseEntregaDate(r.entrega_date || r.embarque_date);
-        if (!d) return false;
-        const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return chave === dataSelecionada;
-      });
-    }
-
-    result = result.filter((r) => {
-      if (!departamento) return true;
-      try {
-        const itens = JSON.parse(r.itens_json || "[]");
-        return itens.some((i) => {
-          const deps = i.departamentos || [];
-          const b = i.barracao_sugerido;
-          if (deps.includes(departamento)) return true;
-          if (departamento === "telhas" && (b === "telhas" || b === "ambos")) return true;
-          if (departamento === "corte_dobra" && (b === "corte_dobra" || b === "ambos")) return true;
-          if (departamento === "expedicao") return true;
-          return false;
-        });
-      } catch {
-        return false;
-      }
+    const result = filtrarRotas(rotas, {
+      departamento,
+      dataSelecionada,
+      busca,
+      statusFiltro,
+      somenteSemFoto,
     });
-    if (compact) result = result.slice(0, 4);
-    return result;
-  }, [rotas, departamento, compact, dataSelecionada]);
+    return compact ? result.slice(0, 4) : result;
+  }, [rotas, departamento, compact, dataSelecionada, busca, statusFiltro, somenteSemFoto]);
 
   if (isLoading) {
     return (
@@ -181,7 +127,15 @@ export default function RotasEntregaSection({
         </div>
       );
     }
-    return null;
+    return (
+      <div className="bg-muted/30 border border-dashed border-border rounded-xl p-5 text-center space-y-1">
+        <CalendarX className="w-6 h-6 mx-auto text-muted-foreground opacity-60" />
+        <p className="text-sm font-semibold text-foreground">Nenhuma rota encontrada</p>
+        <p className="text-xs text-muted-foreground">
+          Ajuste a busca ou os filtros de situação e foto.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -199,11 +153,11 @@ export default function RotasEntregaSection({
           <Archive className="w-3.5 h-3.5" /> Ver Arquivo
         </Link>
       </div>
-      <div className="space-y-4">
-        {rotasFiltradas.map((r) => (
-          <RotaEntregaCard key={r.id} rota={r} departamento={departamento} allowDelete={allowDelete} />
-        ))}
-      </div>
+      <RotasCarrossel
+        rotas={rotasFiltradas}
+        departamento={departamento}
+        allowDelete={allowDelete}
+      />
     </div>
   );
 }
